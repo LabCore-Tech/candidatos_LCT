@@ -3,11 +3,10 @@
    ========================= */
 
 // ================= CONFIG =================
-// Pega aquí el backend público (Render/dominio). Ejemplo:
-const PROTRACK_API_BASE = "https://protrack-49um.onrender.com";//"https://protrack-backend.onrender.com"; // <-- cambia si tu URL es otra
-const PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98"; // opcional
+const PROTRACK_BASE = "https://protrack-49um.onrender.com"; // tu backend real
+const PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98"; // si backend lo exige
 
-//const ENDPOINT_POSITIONS = `${PROTRACK_BASE}/api/gh/public/positions`;
+const ENDPOINT_POSITIONS = `${PROTRACK_BASE}/api/gh/public/positions`;
 const ENDPOINT_EVAL = `${PROTRACK_BASE}/api/gh/public/eval`;          // ?position_id=...
 const ENDPOINT_SUBMIT = `${PROTRACK_BASE}/api/gh/public/submit`;      // POST
 
@@ -93,28 +92,32 @@ function validateForm() {
   const cvFile    = $("cvFile").files && $("cvFile").files[0];
   const policyOk  = $("acceptPolicy").checked;
 
-  if (!firstName) return "Nombre es obligatorio.";
-  if (!lastName) return "Apellido es obligatorio.";
-  if (!cedula || cedula.length < 6) return "Cédula inválida (solo números).";
+  const missing = [];
 
-  if (!email || !isEmail(email)) return "Correo inválido.";
-  if (!phone || !isPhone(phone)) return "Celular inválido.";
-  if (!github || !isUrl(github)) return "GitHub debe ser una URL válida.";
+  if (!firstName) missing.push("Nombre");
+  if (!lastName) missing.push("Apellido");
+  if (!cedula || cedula.length < 6) missing.push("Cédula");
+  if (!email || !isEmail(email)) missing.push("Correo");
+  if (!phone || !isPhone(phone)) missing.push("Celular");
+  if (!github || !isUrl(github)) missing.push("GitHub");
+  if (!university) missing.push("Universidad");
+  if (!career) missing.push("Carrera");
+  if (!semester) missing.push("Semestre");
+  if (!role) missing.push("Cargo a concursar");
+
+  if (!cvFile) missing.push("Hoja de vida (PDF)");
+  if (!policyOk) missing.push("Aceptar política");
+
+  if (missing.length) {
+    return `Debe ingresar los datos obligatorios: ${missing.join(", ")}.`;
+  }
 
   if (linkedin && !isUrl(linkedin)) return "LinkedIn debe ser una URL válida o quedar vacío.";
 
-  if (!university) return "Universidad es obligatoria.";
-  if (!career) return "Carrera es obligatoria.";
-  if (!semester) return "Semestre es obligatorio.";
-  if (!role) return "Cargo a concursar es obligatorio.";
-
-  if (!cvFile) return "Debes adjuntar la hoja de vida (PDF).";
   const isPdf = (cvFile.type === "application/pdf") || /\.pdf$/i.test(cvFile.name);
   if (!isPdf) return "La hoja de vida debe ser PDF.";
   const sizeMb = cvFile.size / (1024 * 1024);
   if (sizeMb > MAX_CV_MB) return `El PDF excede ${MAX_CV_MB} MB.`;
-
-  if (!policyOk) return "Debes aceptar la Política de tratamiento de datos.";
 
   return "";
 }
@@ -149,6 +152,40 @@ function getLock() {
   }
 }
 
+// ===== Anti-fraude =====
+const anti = {
+  startedAt: null,
+  eventsGlobal: { blur:0, visibility:0, copy:0, paste:0, printscreen:0 },
+  perQuestion: {} // idx -> { blur, visibility, copy, paste, printscreen }
+};
+
+function antiInc(type) {
+  anti.eventsGlobal[type] = (anti.eventsGlobal[type] || 0) + 1;
+
+  const idx = exam.idx;
+  anti.perQuestion[idx] = anti.perQuestion[idx] || { blur:0, visibility:0, copy:0, paste:0, printscreen:0 };
+  anti.perQuestion[idx][type] = (anti.perQuestion[idx][type] || 0) + 1;
+}
+
+function wireAntiFraude() {
+  anti.startedAt = Date.now();
+
+  document.addEventListener("visibilitychange", () => {
+    antiInc("visibility");
+  });
+
+  window.addEventListener("blur", () => {
+    antiInc("blur");
+  });
+
+  document.addEventListener("copy", () => antiInc("copy"));
+  document.addEventListener("paste", () => antiInc("paste"));
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "PrintScreen") antiInc("printscreen");
+  });
+}
+
 // ===== Exam state =====
 const exam = {
   durationSec: 600,
@@ -178,6 +215,13 @@ function disableTimerUI() {
   if (timerBox) timerBox.classList.add("hidden");
 }
 
+// ===== API headers =====
+function apiHeaders() {
+  const h = { "Content-Type": "application/json" };
+  if (PUBLIC_EVAL_API_KEY) h["X-API-Key"] = PUBLIC_EVAL_API_KEY;
+  return h;
+}
+
 // ===== API =====
 async function loadPositions() {
   const sel = $("role");
@@ -186,11 +230,15 @@ async function loadPositions() {
   sel.innerHTML = `<option value="">Cargando...</option>`;
 
   try {
-    const r = await fetch(ENDPOINT_POSITIONS, { method: "GET" });
+    const r = await fetch(ENDPOINT_POSITIONS, { method: "GET", headers: apiHeaders() });
     const data = await r.json();
 
-    // Espera: { ok:true, data:[{position_id, position_name, area_code}] }
-    const rows = (data && (data.data || data.positions || data)) || [];
+    if (!data || data.ok === false) {
+      sel.innerHTML = `<option value="">No se pudo cargar</option>`;
+      return;
+    }
+
+    const rows = data.data || data.positions || [];
     sel.innerHTML = `<option value="">Selecciona...</option>`;
 
     for (const it of rows) {
@@ -206,7 +254,6 @@ async function loadPositions() {
 }
 
 function pickOnePerModule(payload) {
-  // payload: { modules:[{id,name,questions:[{id,prompt}]}] }
   const out = [];
   const modules = (payload && payload.modules) || [];
   for (const m of modules) {
@@ -224,33 +271,21 @@ function pickOnePerModule(payload) {
 }
 
 async function loadEvaluationForPosition(positionId) {
-  // Endpoint actual: /api/gh/public/eval?position_id=...
   const url = `${ENDPOINT_EVAL}?position_id=${encodeURIComponent(positionId)}`;
 
-  const r = await fetch(url, { method: "GET" });
+  const r = await fetch(url, { method: "GET", headers: apiHeaders() });
   const data = await r.json();
 
-  // Espera: { ok:true, eval:{duration_minutes, questions|payload|...} }
   if (!data || data.ok === false) {
-    throw new Error((data && data.error) || "No hay evaluación activa.");
+    throw new Error((data && (data.error || data.msg)) || "No hay evaluación activa.");
   }
 
-  // Soportamos varias formas por compatibilidad
   const ev = data.eval || data.data || data;
   const durationMin = Number(ev.duration_minutes || ev.duration || 10);
   exam.durationSec = Math.max(60, durationMin * 60);
 
-  // Si viene payload/modules:
-  if (ev.payload && ev.payload.modules) {
-    return pickOnePerModule(ev.payload);
-  }
-
-  // Si viene directo modules:
-  if (ev.modules) {
-    return pickOnePerModule({ modules: ev.modules });
-  }
-
-  // Si viene como "questions" ya preseleccionadas:
+  if (ev.payload && ev.payload.modules) return pickOnePerModule(ev.payload);
+  if (ev.modules) return pickOnePerModule({ modules: ev.modules });
   if (Array.isArray(ev.questions) && ev.questions.length) {
     return ev.questions.map(q => ({
       id: q.id,
@@ -259,11 +294,7 @@ async function loadEvaluationForPosition(positionId) {
       moduleName: q.moduleName || q.module_name || ""
     }));
   }
-
-  // Si viene payload con "modules" directo:
-  if (ev.questions_json && ev.questions_json.modules) {
-    return pickOnePerModule(ev.questions_json);
-  }
+  if (ev.questions_json && ev.questions_json.modules) return pickOnePerModule(ev.questions_json);
 
   throw new Error("Formato de evaluación no soportado.");
 }
@@ -297,7 +328,7 @@ function startTimer() {
   }, 500);
 }
 
-// ===== Persist / Restore (simple) =====
+// ===== Persist / Restore =====
 function persistLock() {
   const lock = {
     startedAt: exam.startedAt,
@@ -306,7 +337,8 @@ function persistLock() {
     idx: exam.idx,
     answers: exam.answers,
     questions: exam.questions,
-    candidate: exam.candidate
+    candidate: exam.candidate,
+    anti
   };
   setLock(lock);
 }
@@ -318,7 +350,6 @@ function restoreLockIfAny() {
     return;
   }
 
-  // Restaurar
   exam.startedAt = lock.startedAt;
   exam.endsAt = lock.endsAt;
   exam.durationSec = lock.durationSec || 600;
@@ -327,7 +358,12 @@ function restoreLockIfAny() {
   exam.questions = lock.questions || [];
   exam.candidate = lock.candidate || null;
 
-  // UI
+  if (lock.anti) {
+    anti.startedAt = lock.anti.startedAt || anti.startedAt;
+    anti.eventsGlobal = lock.anti.eventsGlobal || anti.eventsGlobal;
+    anti.perQuestion = lock.anti.perQuestion || anti.perQuestion;
+  }
+
   $("indexCard").classList.add("hidden");
   $("examCard").classList.remove("hidden");
 
@@ -349,7 +385,6 @@ function restoreLockIfAny() {
 
 // ===== Finish =====
 async function finishExam(timedOut = false) {
-  // Validar todas respondidas si no fue timeout
   if (!timedOut) {
     for (let i = 0; i < exam.questions.length; i++) {
       if (!exam.answers[i] || !String(exam.answers[i]).trim()) {
@@ -361,7 +396,6 @@ async function finishExam(timedOut = false) {
 
   showExamError("");
 
-  // Payload para backend ProTrack (ajusta según tu app.py actual)
   const payload = {
     candidate: exam.candidate,
     position_id: exam.candidate.position_id || "",
@@ -370,7 +404,8 @@ async function finishExam(timedOut = false) {
       endsAt: exam.endsAt,
       submittedAt: Date.now(),
       timedOut,
-      userAgent: navigator.userAgent || ""
+      userAgent: navigator.userAgent || "",
+      anti
     },
     questions: exam.questions.map((q, i) => ({
       id: q.id,
@@ -379,15 +414,20 @@ async function finishExam(timedOut = false) {
       moduleName: q.moduleName,
       answer: exam.answers[i] || ""
     })),
-    cv: exam.cv // {filename,mime,base64}
+    cv: exam.cv
   };
 
   try {
-    await fetch(ENDPOINT_SUBMIT, {
+    const r = await fetch(ENDPOINT_SUBMIT, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify(payload)
     });
+
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || data.ok === false) {
+      throw new Error((data && (data.error || data.msg)) || "No se pudo guardar la evaluación.");
+    }
 
     clearLock();
     if (exam.timerInt) {
@@ -399,8 +439,7 @@ async function finishExam(timedOut = false) {
     openModal("modalDone");
   } catch (e) {
     console.error(e);
-    // Igual muestra modal para no bloquear UX (pero deja lock por si quieres reintentar)
-    openModal("modalDone");
+    showExamError("No se pudo enviar. Verifica conexión y reintenta (no cierres la pestaña).");
   }
 }
 
@@ -408,12 +447,10 @@ function resetToIndex() {
   $("examCard").classList.add("hidden");
   $("indexCard").classList.remove("hidden");
 
-  // Reset form
   $("candidateForm").reset();
   showFormError("");
   showExamError("");
 
-  // Reset state
   exam.startedAt = null;
   exam.endsAt = null;
   exam.questions = [];
@@ -442,7 +479,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
     showFormError("");
-
     openModal("modalInfo");
   });
 
@@ -453,6 +489,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     closeModal("modalInfo");
 
     try {
+      wireAntiFraude();
+
       const cvFile = $("cvFile").files[0];
       const cvBase64 = await fileToBase64(cvFile);
 
@@ -474,16 +512,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       exam.cv = {
         filename: cvFile.name || "cv.pdf",
-        mime: cvFile.type || "application/pdf",
+        mime: "application/pdf",
         base64: cvBase64
       };
 
-      // Cargar evaluación por cargo (desde ProTrack)
       exam.questions = await loadEvaluationForPosition(positionId);
       exam.answers = new Array(exam.questions.length).fill("");
       exam.idx = 0;
 
-      // Cambiar UI a examen
       $("indexCard").classList.add("hidden");
       $("examCard").classList.remove("hidden");
 
@@ -492,7 +528,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       persistLock();
     } catch (err) {
       console.error(err);
-      showFormError("No se pudo iniciar la evaluación. Revisa conexión y que exista un banco activo para ese cargo.");
+      showFormError("No se pudo iniciar la evaluación. Verifica conexión y que exista un banco activo para ese cargo.");
       resetToIndex();
     }
   });
@@ -507,7 +543,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       renderQuestion();
       return;
     }
-    // Última pregunta => enviar
+
     await finishExam(false);
   });
 
