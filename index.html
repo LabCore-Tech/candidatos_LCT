@@ -3,30 +3,48 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LabCore Tech | Evaluación</title>
-  <link rel="stylesheet" href="src/css/styles.css" />
+  <title>Evaluación | LabCore Tech</title>
 
-	<!-- Google tag (gtag.js) -->
-	<script async src="https://www.googletagmanager.com/gtag/js?id=G-NE36ZXZC77"></script>
-	<script>
-	  window.dataLayer = window.dataLayer || [];
-	  function gtag(){dataLayer.push(arguments);}
-	  gtag('js', new Date());
-	  gtag('config', 'G-NE36ZXZC77');
-	</script>
+  <!-- Tu CSS (respetamos tu estructura) -->
+  <link rel="stylesheet" href="src/css/styles.css" />
 </head>
 
 <body>
   <main class="page">
-    <section class="card">
-      <header class="card__head">
-        <div class="brand">
-          <h1>Evaluación</h1>
-          <p>LabCore Tech</p>
-        </div>
-      </header>
 
-      <form id="candidateForm" class="formgrid" autocomplete="on" novalidate>
+    <!-- Top bar (similar a tu imagen buena) -->
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <div class="brand-logo">
+            <!-- Si ya tienes logo, deja el path como lo tengas -->
+            <img src="src/img/LabCore.webp" alt="LabCore" onerror="this.style.display='none'">
+          </div>
+          <div class="brand-txt">
+            <div class="brand-name">LabCore</div>
+            <div class="brand-sub">Evaluación de ingreso</div>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <div id="timerBox" class="timerBox hidden" aria-label="Tiempo restante">
+            <span class="timerLabel">Tiempo</span>
+            <span id="timer" class="timerValue">10:00</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Card principal -->
+    <section class="card" id="indexCard">
+      <h1 class="card-title">Datos del postulante</h1>
+      <p class="card-subtitle">Completa los campos y adjunta la hoja de vida antes de iniciar.</p>
+
+      <!-- Errores de formulario -->
+      <div id="formError" class="alert hidden" role="alert"></div>
+
+      <form id="candidateForm" class="grid" autocomplete="on" novalidate>
+        <!-- Row 1 -->
         <div class="field">
           <label for="firstName">Nombre</label>
           <input id="firstName" name="firstName" type="text" placeholder="Escribe tu nombre" required autocomplete="given-name" />
@@ -42,6 +60,7 @@
           <input id="cedula" name="cedula" type="text" inputmode="numeric" placeholder="Solo números" required autocomplete="off" />
         </div>
 
+        <!-- Row 2 -->
         <div class="field">
           <label for="email">Correo</label>
           <input id="email" name="email" type="email" placeholder="tucorreo@dominio.com" required autocomplete="email" />
@@ -49,7 +68,7 @@
 
         <div class="field">
           <label for="phone">Celular</label>
-          <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="Ej: 3001234567" required autocomplete="tel" />
+          <input id="phone" name="phone" type="tel" placeholder="Ej: 3001234567" required autocomplete="tel" />
         </div>
 
         <div class="field">
@@ -57,6 +76,7 @@
           <input id="github" name="github" type="url" placeholder="https://github.com/tuusuario" required autocomplete="off" />
         </div>
 
+        <!-- Row 3 -->
         <div class="field">
           <label for="linkedin">LinkedIn (opcional)</label>
           <input id="linkedin" name="linkedin" type="url" placeholder="https://www.linkedin.com/in/tuperfil" autocomplete="off" />
@@ -64,103 +84,105 @@
 
         <div class="field">
           <label for="university">Universidad</label>
-          <input id="university" name="university" type="text" placeholder="Ej: UNICUCES" required autocomplete="organization" />
+          <input id="university" name="university" type="text" placeholder="Escribe tu universidad" required autocomplete="organization" />
         </div>
 
         <div class="field">
           <label for="career">Carrera</label>
-          <select id="career" name="career" required>
-            <option value="" selected disabled>Selecciona...</option>
-            <option value="Ing. Sistemas">Ing. Sistemas</option>
-            <option value="Ing. Software">Ing. Software</option>
-            <option value="Tecnología">Tecnología</option>
-            <option value="Otra">Otra</option>
-          </select>
+          <!-- Mantengo tu id="career" (respetando JS previo) -->
+          <input id="career" name="career" type="text" placeholder="Selecciona... o escribe" required autocomplete="off" />
         </div>
 
+        <!-- Row 4 -->
         <div class="field">
           <label for="semester">Semestre</label>
-          <select id="semester" name="semester" required>
-            <option value="" selected disabled>Selecciona...</option>
-            <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
-            <option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option>
-            <option value="9">9</option><option value="10">10</option>
-          </select>
+          <!-- Mantengo tu id="semester" -->
+          <input id="semester" name="semester" type="text" placeholder="Selecciona... o escribe" required autocomplete="off" />
         </div>
 
         <div class="field">
-          <label for="role">Cargo a ocupar</label>
+          <label for="role">Cargo a concursar</label>
+          <!-- Mantengo tu id="role" porque tu JS lo usa -->
           <select id="role" name="role" required>
-            <option value="" selected disabled>Selecciona...</option>
+            <option value="">Selecciona...</option>
           </select>
+          <small class="hint">Se carga desde ProTrack.</small>
         </div>
 
-        <div class="field field--full">
+        <div class="field">
           <label for="cvFile">Hoja de vida (PDF)</label>
-          <input id="cvFile" name="cvFile" type="file" required accept="application/pdf" />
-          <small>Máx. 8 MB — Solo PDF</small>
+          <input id="cvFile" name="cvFile" type="file" accept="application/pdf,.pdf" required />
+          <small class="hint">Máx. 8 MB — Solo PDF</small>
         </div>
 
-        <div class="field field--full">
-          <label class="checkbox">
-            <input id="acceptPolicy" type="checkbox" required />
-            <span>Acepto la Política de datos</span>
+        <!-- Política -->
+        <div class="field field-policy">
+          <label class="policy">
+            <input id="acceptPolicy" type="checkbox" />
+            <span>Acepto la <a href="politica.html" target="_blank" rel="noopener">Política de tratamiento de datos</a>.</span>
           </label>
         </div>
 
-        <div id="formError" class="error"></div>
-
+        <!-- Botón centrado -->
         <div class="actions">
-          <button id="btnStart" type="button" class="btn btn--primary">Iniciar evaluación</button>
+          <button id="btnStart" class="btn primary" type="submit">Iniciar evaluación</button>
         </div>
       </form>
     </section>
 
-    <!-- Modal info -->
-    <div id="modalInfo" class="modal">
-      <div class="modal__content">
-        <h2>Antes de iniciar</h2>
-        <p>La evaluación dura 10 minutos. Una vez inicie, no cierres la pestaña.</p>
-        <div class="modal__actions">
-          <button id="btnCancelStart" class="btn">Cancelar</button>
-          <button id="btnAcceptStart" class="btn btn--primary">Continuar</button>
-        </div>
-        <button id="modalInfoClose" class="modal__close" aria-label="Cerrar">×</button>
+    <!-- Card evaluación (la de preguntas) -->
+    <section class="card hidden" id="examCard">
+      <div class="examHead">
+        <h2 class="examTitle">Evaluación</h2>
+        <div class="examMeta" id="uiMsg"></div>
       </div>
-    </div>
 
-    <!-- Exam UI -->
-    <section id="examSection" class="card hidden">
-      <header class="card__head">
-        <div class="examhead">
-          <div id="timer" class="timer">10:00</div>
-          <div class="exammeta">
-            <div id="qModule" class="qmodule"></div>
-            <div id="qText" class="qtext"></div>
-          </div>
-        </div>
-      </header>
+      <div id="examError" class="alert hidden" role="alert"></div>
 
-      <div class="card__body">
-        <textarea id="qAnswer" class="answer" placeholder="Escribe tu respuesta aquí..."></textarea>
-        <div id="examError" class="error"></div>
+      <div class="qbox">
+        <div id="qText" class="qText"></div>
+        <textarea id="qAnswer" class="qAnswer" placeholder="Escribe tu respuesta aquí..." rows="7"></textarea>
+      </div>
 
-        <div class="actions">
-          <button id="btnNext" class="btn btn--primary">Siguiente</button>
-        </div>
+      <div class="examActions">
+        <button id="btnNext" class="btn primary" type="button">Siguiente</button>
       </div>
     </section>
 
-    <!-- Modal done -->
-    <div id="modalDone" class="modal">
-      <div class="modal__content">
-        <h2>✅ Evaluación enviada</h2>
-        <p>Gracias. Tu información quedó registrada.</p>
-        <button id="btnDoneClose" class="btn btn--primary">Cerrar</button>
+    <!-- Modal info (antes de iniciar) -->
+    <div id="modalInfo" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalInfoTitle">
+        <button class="modal-x" type="button" id="modalInfoClose" aria-label="Cerrar">×</button>
+        <h3 id="modalInfoTitle">Antes de iniciar</h3>
+        <p class="modal-text">
+          La evaluación dura 10 minutos. Una vez inicie, no cierres la pestaña.
+          Gracias. Tu información quedará registrada.
+        </p>
+        <div class="modal-actions">
+          <button class="btn ghost" type="button" id="btnCancelStart">Cancelar</button>
+          <button class="btn primary" type="button" id="btnAcceptStart">Continuar</button>
+        </div>
       </div>
     </div>
+
+    <!-- Modal final -->
+    <div id="modalDone" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalDoneTitle">
+        <button class="modal-x" type="button" id="modalDoneClose" aria-label="Cerrar">×</button>
+        <h3 id="modalDoneTitle">Evaluación enviada</h3>
+        <p class="modal-text">
+          Gracias. Tu evaluación quedó registrada correctamente.
+        </p>
+        <div class="modal-actions">
+          <button class="btn primary" type="button" id="btnDoneOk">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
   </main>
 
-  <script src="app.js"></script>
+  <script defer src="src/js/app.js"></script>
 </body>
 </html>
