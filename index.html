@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LabCore Tech | Evaluación</title>
+  <link rel="stylesheet" href="src/css/styles.css" />
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-NE36ZXZC77"></script>
+	<script>
+	  window.dataLayer = window.dataLayer || [];
+	  function gtag(){dataLayer.push(arguments);}
+	  gtag('js', new Date());
+	  gtag('config', 'G-NE36ZXZC77');
+	</script>
+</head>
+
+<body>
+  <main class="page">
+    <section class="card">
+      <header class="card__head">
+        <div class="brand">
+          <h1>Evaluación</h1>
+          <p>LabCore Tech</p>
+        </div>
+      </header>
+
+      <form id="candidateForm" class="formgrid" autocomplete="on" novalidate>
+        <div class="field">
+          <label for="firstName">Nombre</label>
+          <input id="firstName" name="firstName" type="text" placeholder="Escribe tu nombre" required autocomplete="given-name" />
+        </div>
+
+        <div class="field">
+          <label for="lastName">Apellido</label>
+          <input id="lastName" name="lastName" type="text" placeholder="Escribe tu apellido" required autocomplete="family-name" />
+        </div>
+
+        <div class="field">
+          <label for="cedula">Cédula</label>
+          <input id="cedula" name="cedula" type="text" inputmode="numeric" placeholder="Solo números" required autocomplete="off" />
+        </div>
+
+        <div class="field">
+          <label for="email">Correo</label>
+          <input id="email" name="email" type="email" placeholder="tucorreo@dominio.com" required autocomplete="email" />
+        </div>
+
+        <div class="field">
+          <label for="phone">Celular</label>
+          <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="Ej: 3001234567" required autocomplete="tel" />
+        </div>
+
+        <div class="field">
+          <label for="github">GitHub</label>
+          <input id="github" name="github" type="url" placeholder="https://github.com/tuusuario" required autocomplete="off" />
+        </div>
+
+        <div class="field">
+          <label for="linkedin">LinkedIn (opcional)</label>
+          <input id="linkedin" name="linkedin" type="url" placeholder="https://www.linkedin.com/in/tuperfil" autocomplete="off" />
+        </div>
+
+        <div class="field">
+          <label for="university">Universidad</label>
+          <input id="university" name="university" type="text" placeholder="Ej: UNICUCES" required autocomplete="organization" />
+        </div>
+
+        <div class="field">
+          <label for="career">Carrera</label>
+          <select id="career" name="career" required>
+            <option value="" selected disabled>Selecciona...</option>
+            <option value="Ing. Sistemas">Ing. Sistemas</option>
+            <option value="Ing. Software">Ing. Software</option>
+            <option value="Tecnología">Tecnología</option>
+            <option value="Otra">Otra</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="semester">Semestre</label>
+          <select id="semester" name="semester" required>
+            <option value="" selected disabled>Selecciona...</option>
+            <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
+            <option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option>
+            <option value="9">9</option><option value="10">10</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="role">Cargo a ocupar</label>
+          <select id="role" name="role" required>
+            <option value="" selected disabled>Selecciona...</option>
+          </select>
+        </div>
+
+        <div class="field field--full">
+          <label for="cvFile">Hoja de vida (PDF)</label>
+          <input id="cvFile" name="cvFile" type="file" required accept="application/pdf" />
+          <small>Máx. 8 MB — Solo PDF</small>
+        </div>
+
+        <div class="field field--full">
+          <label class="checkbox">
+            <input id="acceptPolicy" type="checkbox" required />
+            <span>Acepto la Política de datos</span>
+          </label>
+        </div>
+
+        <div id="formError" class="error"></div>
+
+        <div class="actions">
+          <button id="btnStart" type="button" class="btn btn--primary">Iniciar evaluación</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Modal info -->
+    <div id="modalInfo" class="modal">
+      <div class="modal__content">
+        <h2>Antes de iniciar</h2>
+        <p>La evaluación dura 10 minutos. Una vez inicie, no cierres la pestaña.</p>
+        <div class="modal__actions">
+          <button id="btnCancelStart" class="btn">Cancelar</button>
+          <button id="btnAcceptStart" class="btn btn--primary">Continuar</button>
+        </div>
+        <button id="modalInfoClose" class="modal__close" aria-label="Cerrar">×</button>
+      </div>
+    </div>
+
+    <!-- Exam UI -->
+    <section id="examSection" class="card hidden">
+      <header class="card__head">
+        <div class="examhead">
+          <div id="timer" class="timer">10:00</div>
+          <div class="exammeta">
+            <div id="qModule" class="qmodule"></div>
+            <div id="qText" class="qtext"></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="card__body">
+        <textarea id="qAnswer" class="answer" placeholder="Escribe tu respuesta aquí..."></textarea>
+        <div id="examError" class="error"></div>
+
+        <div class="actions">
+          <button id="btnNext" class="btn btn--primary">Siguiente</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Modal done -->
+    <div id="modalDone" class="modal">
+      <div class="modal__content">
+        <h2>✅ Evaluación enviada</h2>
+        <p>Gracias. Tu información quedó registrada.</p>
+        <button id="btnDoneClose" class="btn btn--primary">Cerrar</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
