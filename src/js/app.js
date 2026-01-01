@@ -4,7 +4,7 @@
 
 // ================= CONFIG =================
 const PROTRACK_BASE = "https://protrack-49um.onrender.com"; // tu backend real
-//const PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98"; // si backend lo exige
+const PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98"; // si backend lo exige
 
 const ENDPOINT_POSITIONS = `${PROTRACK_BASE}/api/gh/public/positions`;
 const ENDPOINT_EVAL = `${PROTRACK_BASE}/api/gh/public/eval`;          // ?position_id=...
@@ -467,8 +467,18 @@ function resetToIndex() {
 
 // ===== Events =====
 document.addEventListener("DOMContentLoaded", async () => {
+  $("btnStart").disabled = true;
+
   await loadPositions();
+
+  // Si cargó bien y hay más de 1 opción (Selecciona + cargos)
+  const roleSel = $("role");
+  if (roleSel && roleSel.options && roleSel.options.length > 1) {
+    $("btnStart").disabled = false;
+  }
+
   restoreLockIfAny();
+
 
   $("candidateForm").addEventListener("submit", async (e) => {
     e.preventDefault();

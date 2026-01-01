@@ -222,10 +222,32 @@ body{
 }
 
 .btn.primary{
-  color:#fff;
-  background: linear-gradient(135deg, var(--primary), var(--primary2));
-  box-shadow: 0 14px 26px rgba(109, 40, 217, .22);
+  color:#111827;
+  background: linear-gradient(
+    135deg,
+    #d7d7d7 0%,
+    #f3f3f3 22%,
+    #d6b46b 52%,
+    #c7c7c7 78%,
+    #9a9a9a 100%
+  );
+  border: 1px solid rgba(180, 160, 110, .55);
+  box-shadow: 0 16px 30px rgba(15, 23, 42, .12);
   min-width: 260px;
+}
+
+.btn.primary:hover{
+  filter: brightness(1.03);
+}
+
+.btn.primary:active{
+  transform: translateY(1px);
+}
+
+.btn.primary:disabled{
+  cursor: not-allowed;
+  opacity: .75;
+  filter: grayscale(.25);
 }
 
 .btn.primary:hover{filter: brightness(1.03);}
