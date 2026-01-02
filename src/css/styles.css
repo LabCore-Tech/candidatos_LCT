@@ -222,19 +222,20 @@ body{
 }
 
 .btn.primary{
-  color:#111827;
+  color: #EDEDED;
   background: linear-gradient(
     135deg,
-    #d7d7d7 0%,
-    #f3f3f3 22%,
-    #d6b46b 52%,
-    #c7c7c7 78%,
-    #9a9a9a 100%
+    #3A3A38 0%,
+    #2C2C2B 45%,
+    #232322 100%
   );
-  border: 1px solid rgba(180, 160, 110, .55);
-  box-shadow: 0 16px 30px rgba(15, 23, 42, .12);
+  border: 1px solid #545452;
+  box-shadow:
+    0 12px 24px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   min-width: 260px;
 }
+  
 
 .btn.primary:hover{
   filter: brightness(1.03);
