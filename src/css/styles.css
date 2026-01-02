@@ -221,21 +221,18 @@ body{
   font-size: 16px;
 }
 
-.btn.primary{
-  color: #EDEDED;
+.btn.primary:hover{
   background: linear-gradient(
     135deg,
-    #3A3A38 0%,
-    #2C2C2B 45%,
-    #232322 100%
+    #4A4A48 0%,
+    #343433 45%,
+    #2A2A29 100%
   );
-  border: 1px solid #545452;
   box-shadow:
-    0 12px 24px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  min-width: 260px;
+    0 16px 32px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
-  
+
 
 .btn.primary:hover{
   filter: brightness(1.03);
