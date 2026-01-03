@@ -1,100 +1,97 @@
 <!doctype html>
 <html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>LabCore | Evaluación de ingreso</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>LabCore · Evaluación de ingreso</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
 
-<body>
-  <div class="page">
-    <header class="topbar">
-      <div class="topbar__brand">
-        <img class="logo" src="LabCore.webp" alt="LabCore" />
-        <div>
-          <div class="brand__title">LabCore</div>
-          <div class="brand__sub">Evaluación de ingreso</div>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <img class="brand-logo" src="./LabCore.webp" alt="LabCore" />
+          <div class="brand-txt">
+            <div class="brand-name">LabCore</div>
+            <div class="brand-sub">Evaluación de ingreso</div>
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
 
-    <main class="content">
-      <!-- FORM CARD -->
-      <section class="card">
-        <h1>Datos del postulante</h1>
-        <p class="lead">
-          Completa los campos obligatorios y adjunta la hoja de vida antes de iniciar.
-          <span class="note">Los campos con <b>*</b> son obligatorios.</span>
-        </p>
+      <main class="card">
+        <div class="card-head">
+          <h1>Datos del postulante</h1>
+          <p>
+            Completa los campos obligatorios y adjunta la hoja de vida antes de iniciar.
+            <span class="muted">Los campos con <span class="req">*</span> son obligatorios.</span>
+          </p>
+        </div>
 
-        <div id="formError" class="form-error" hidden></div>
+        <div id="uiMsg" class="msg hidden" role="alert"></div>
 
-        <form id="candidateForm" autocomplete="off" novalidate>
-          <!-- Row 1 -->
-          <div class="grid">
+        <form id="candidateForm" class="form" novalidate>
+          <div class="grid-4">
             <div class="field">
               <label for="firstName">Nombre <span class="req">*</span></label>
-              <input id="firstName" name="firstName" type="text" placeholder="Escribe tu nombre" required />
+              <input id="firstName" name="firstName" type="text" placeholder="Escribe tu nombre" autocomplete="given-name" />
             </div>
 
             <div class="field">
               <label for="lastName">Apellido <span class="req">*</span></label>
-              <input id="lastName" name="lastName" type="text" placeholder="Escribe tu apellido" required />
+              <input id="lastName" name="lastName" type="text" placeholder="Escribe tu apellido" autocomplete="family-name" />
             </div>
 
             <div class="field">
               <label for="idNumber">Cédula <span class="req">*</span></label>
-              <input id="idNumber" name="idNumber" type="text" inputmode="numeric" placeholder="Solo números" required />
+              <input id="idNumber" name="idNumber" type="text" inputmode="numeric" placeholder="Solo números" />
             </div>
 
             <div class="field">
-              <label for="role">Cargo a concursar <span class="req">*</span></label>
-              <select id="role" name="role" required>
-                <option value="" selected>Cargando...</option>
+              <label for="positionSelect">Cargo a concursar <span class="req">*</span></label>
+              <select id="positionSelect" name="positionSelect">
+                <option value="" selected disabled>Cargando...</option>
               </select>
             </div>
           </div>
 
-          <!-- Row 2 -->
-          <div class="grid">
+          <div class="grid-4">
             <div class="field">
               <label for="email">Correo <span class="req">*</span></label>
               <div class="input-icon">
-                <input id="email" name="email" type="email" placeholder="tucorreo@dominio.com" required />
-                <span class="icon">@</span>
+                <input id="email" name="email" type="email" placeholder="tucorreo@dominio.com" autocomplete="email" />
+                <span class="icon-mail" aria-hidden="true">✉</span>
               </div>
             </div>
 
             <div class="field">
               <label for="phone">Celular <span class="req">*</span></label>
-              <input id="phone" name="phone" type="tel" placeholder="Ej: 3001234567" required />
+              <input id="phone" name="phone" type="tel" placeholder="Ej: 3001234567" autocomplete="tel" />
             </div>
 
             <div class="field">
               <label for="github">GitHub <span class="req">*</span></label>
-              <input id="github" name="github" type="url" placeholder="https://github.com/tuusuario" required />
+              <input id="github" name="github" type="url" placeholder="https://github.com/tuusuario" />
             </div>
 
-            <!-- CV Upload (SIN botón "Seleccionar archivo") -->
-            <div class="field">
+            <!-- ✅ Hoja de vida: sin “Seleccionar archivo”, se ve como input normal -->
+            <div class="field file-field">
               <label for="cvFile">Hoja de vida (PDF) <span class="req">*</span></label>
 
               <!-- input real (oculto) -->
-              <input id="cvFile" name="cvFile" type="file" accept="application/pdf,.pdf" required hidden>
+              <input id="cvFile" name="cvFile" type="file" accept="application/pdf" />
 
-              <!-- UI tipo "input" -->
-              <div id="cvPicker" class="file-pill" role="button" tabindex="0" aria-label="Adjuntar hoja de vida">
-                <span id="cvPickerText" class="file-pill__text">Haz clic para adjuntar tu PDF</span>
-                <span class="file-badge">PDF</span>
-              </div>
+              <!-- campo visual (parece input, abre el selector al hacer click) -->
+              <button type="button" class="file-display" id="cvDisplay" aria-describedby="cvHint">
+                <span class="file-display-text" id="cvDisplayText">Haz clic para adjuntar tu PDF</span>
+                <span class="file-pill">PDF</span>
+              </button>
 
-              <small class="hint">Máx. 8 MB — Solo PDF</small>
+              <small class="hint" id="cvHint">Máx. 8 MB — Solo PDF</small>
             </div>
           </div>
 
-          <!-- Row 3 -->
-          <div class="grid">
+          <div class="grid-4">
             <div class="field">
               <label for="linkedin">LinkedIn</label>
               <input id="linkedin" name="linkedin" type="url" placeholder="https://www.linkedin.com/in/tuperfil" />
@@ -102,69 +99,74 @@
 
             <div class="field">
               <label for="university">Universidad <span class="req">*</span></label>
-              <input id="university" name="university" type="text" placeholder="Escribe tu universidad" required />
+              <input id="university" name="university" type="text" placeholder="Escribe tu universidad" />
             </div>
 
             <div class="field">
               <label for="career">Carrera <span class="req">*</span></label>
-              <input id="career" name="career" type="text" placeholder="Selecciona... o escribe" required />
+              <input id="career" name="career" type="text" placeholder="Selecciona... o escribe" />
             </div>
 
             <div class="field">
               <label for="semester">Semestre <span class="req">*</span></label>
-              <input id="semester" name="semester" type="text" placeholder="Selecciona... o escribe" required />
+              <input id="semester" name="semester" type="text" placeholder="Selecciona... o escribe" />
             </div>
           </div>
 
           <div class="checks">
             <label class="check">
-              <input id="acceptPolicy" type="checkbox" required />
+              <input id="policyCheck" type="checkbox" />
               <span>Acepto la <a href="#" id="policyLink">Política de tratamiento de datos</a>.</span>
             </label>
           </div>
 
           <div class="actions">
-            <button id="startBtn" type="button" class="btn primary" disabled>Iniciar evaluación</button>
+            <button id="btnStart" type="button" class="btn primary" disabled>Iniciar evaluación</button>
           </div>
         </form>
-      </section>
+      </main>
 
-      <!-- EXAM CARD -->
-      <section id="examCard" class="card" hidden>
-        <div class="exam-head">
-          <div>
+      <!-- Modal Antes de iniciar (sin botón Cancelar; solo X) -->
+      <div id="preStartBackdrop" class="modal-backdrop hidden" aria-hidden="true">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="preStartTitle">
+          <div class="modal-head">
+            <h3 id="preStartTitle">Antes de iniciar</h3>
+            <button id="btnCloseModal" class="icon-btn" type="button" aria-label="Cerrar">×</button>
+          </div>
+
+          <p class="modal-text">
+            La evaluación dura 10 minutos. Una vez inicie, no cierres la pestaña.
+            Gracias. Tu información quedará registrada.
+          </p>
+
+          <div class="modal-actions">
+            <button id="btnContinue" type="button" class="btn primary">Continuar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contenedor evaluación -->
+      <section id="examSection" class="exam hidden">
+        <div class="exam-card">
+          <div class="exam-head">
             <h2>Evaluación</h2>
             <div class="exam-meta">
-              <span id="timerLabel">10:00</span>
-              <span class="dot">•</span>
-              <span>Incidentes: <b id="incidentCount">0</b></span>
+              <div>Tiempo: <strong id="timer">10:00</strong></div>
+              <div>Incidentes: <strong id="incidents">0</strong></div>
             </div>
           </div>
 
-          <button id="submitBtn" class="btn primary" type="button" disabled>Enviar evaluación</button>
+          <div id="examError" class="msg msg-error hidden" role="alert"></div>
+
+          <div id="examContainer" class="exam-body"></div>
+
+          <div class="exam-actions">
+            <button id="btnSubmit" class="btn" type="button">Enviar evaluación</button>
+          </div>
         </div>
-
-        <div id="examBody" class="exam-body"></div>
       </section>
-    </main>
-  </div>
-
-  <!-- MODAL “Antes de iniciar” (SIN botón Cancelar) -->
-  <div id="startModal" class="modal" hidden>
-    <div class="modal__backdrop"></div>
-    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="startModalTitle">
-      <button class="modal__close" id="startModalClose" aria-label="Cerrar">×</button>
-      <h3 id="startModalTitle">Antes de iniciar</h3>
-      <p class="muted">
-        La evaluación dura 10 minutos. Una vez inicie, no cierres la pestaña.
-        Gracias. Tu información quedará registrada.
-      </p>
-      <div class="modal__actions">
-        <button id="btnContinueStart" class="btn primary" type="button">Continuar</button>
-      </div>
     </div>
-  </div>
 
-  <script src="app.js"></script>
-</body>
+    <script src="./app.js"></script>
+  </body>
 </html>
