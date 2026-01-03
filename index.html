@@ -1,191 +1,146 @@
 <!doctype html>
 <html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Evaluación | LabCore Tech</title>
-  <link rel="stylesheet" href="src/css/styles.css" />
-</head>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LabCore - Evaluación</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
 
-<body>
-  <main class="page">
-
-    <header class="topbar">
-      <div class="topbar-inner">
+  <body>
+    <main class="wrap">
+      <header class="topbar">
         <div class="brand">
-          <div class="brand-logo">
-            <img src="src/img/LabCore.webp" alt="LabCore" onerror="this.style.display='none'">
-          </div>
+          <img class="brand-icon" src="./LabCore.webp" alt="LabCore" />
           <div class="brand-txt">
             <div class="brand-name">LabCore</div>
             <div class="brand-sub">Evaluación de ingreso</div>
           </div>
         </div>
+      </header>
 
-        <div class="topbar-right">
-          <div id="timerBox" class="timerBox hidden" aria-label="Tiempo restante">
-            <span class="timerLabel">Tiempo</span>
-            <span id="timer" class="timerValue">10:00</span>
+      <section class="card" id="indexCard">
+        <h1>Datos del postulante</h1>
+        <p class="lead">
+          Completa los campos obligatorios y adjunta la hoja de vida antes de iniciar.
+          <span class="muted">Los campos con <span class="req">*</span> son obligatorios.</span>
+        </p>
+
+        <div class="alert" id="formError" hidden></div>
+
+        <form id="candidateForm" novalidate>
+          <div class="grid">
+            <div class="field">
+              <label for="firstName">Nombre <span class="req">*</span></label>
+              <input id="firstName" type="text" placeholder="Escribe tu nombre" autocomplete="given-name" />
+            </div>
+
+            <div class="field">
+              <label for="lastName">Apellido <span class="req">*</span></label>
+              <input id="lastName" type="text" placeholder="Escribe tu apellido" autocomplete="family-name" />
+            </div>
+
+            <div class="field">
+              <label for="cedula">Cédula <span class="req">*</span></label>
+              <input id="cedula" type="text" inputmode="numeric" placeholder="Solo números" />
+            </div>
+
+            <div class="field">
+              <label for="role">Cargo a concursar <span class="req">*</span></label>
+              <select id="role">
+                <option value="">Cargando...</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="email">Correo <span class="req">*</span></label>
+              <input id="email" type="email" placeholder="tucorreo@dominio.com" autocomplete="email" />
+            </div>
+
+            <div class="field">
+              <label for="phone">Celular <span class="req">*</span></label>
+              <input id="phone" type="text" placeholder="Ej: 3001234567" autocomplete="tel" />
+            </div>
+
+            <div class="field">
+              <label for="github">GitHub <span class="req">*</span></label>
+              <input id="github" type="url" placeholder="https://github.com/tuusuario" />
+            </div>
+
+            <!-- ✅ Campo CV sin botón "Seleccionar archivo" -->
+            <div class="field">
+              <label for="cvFile">Hoja de vida (PDF) <span class="req">*</span></label>
+              <div class="file-input" id="cvPicker" role="button" tabindex="0" aria-label="Adjuntar hoja de vida PDF">
+                <span id="cvPlaceholder" class="file-placeholder">Haz clic para adjuntar tu PDF</span>
+                <span id="cvName" class="file-name" hidden></span>
+              </div>
+              <input id="cvFile" name="cvFile" type="file" accept="application/pdf,.pdf" required hidden />
+              <small class="hint">Máx. 8 MB — Solo PDF</small>
+            </div>
+
+            <div class="field">
+              <label for="linkedin">LinkedIn</label>
+              <input id="linkedin" type="url" placeholder="https://www.linkedin.com/in/tuperfil" />
+            </div>
+
+            <div class="field">
+              <label for="university">Universidad <span class="req">*</span></label>
+              <input id="university" type="text" placeholder="Escribe tu universidad" />
+            </div>
+
+            <div class="field">
+              <label for="career">Carrera <span class="req">*</span></label>
+              <input id="career" type="text" placeholder="Ej: Ingeniería de Sistemas" />
+            </div>
+
+            <div class="field">
+              <label for="semester">Semestre <span class="req">*</span></label>
+              <input id="semester" type="text" placeholder="Ej: 10" />
+            </div>
+          </div>
+
+          <label class="check">
+            <input id="acceptPolicy" type="checkbox" />
+            <span>Acepto la <b class="accent">Política de tratamiento de datos</b>.</span>
+          </label>
+
+          <div class="actions">
+            <button id="btnStart" class="btn primary" type="button">Iniciar evaluación</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Pantalla examen (se renderiza por JS) -->
+      <section class="card" id="examCard" hidden></section>
+
+      <!-- Modal confirmación inicio (se usa también para "locked") -->
+      <div class="modal" id="modalInfo" aria-hidden="true">
+        <div class="modal-backdrop"></div>
+        <div class="modal-card" role="dialog" aria-modal="true">
+          <button class="modal-x" id="modalInfoClose" aria-label="Cerrar">×</button>
+          <h3 id="modalInfoTitle">Antes de iniciar</h3>
+          <p class="modal-text">
+            La evaluación dura 10 minutos. Una vez inicie, no cierres la pestaña. Gracias. Tu información quedará registrada.
+          </p>
+          <div class="modal-actions">
+            <button class="btn primary" id="btnAcceptStart">Continuar</button>
           </div>
         </div>
       </div>
-    </header>
 
-    <section class="card" id="indexCard">
-      <h1 class="card-title">Datos del postulante</h1>
-      <p class="card-subtitle">
-        Completa los campos obligatorios y adjunta la hoja de vida antes de iniciar.
-        <span class="req-note">Los campos con <b>*</b> son obligatorios.</span>
-      </p>
-
-      <div id="formError" class="alert hidden" role="alert"></div>
-
-      <form id="candidateForm" class="grid grid-4x3" autocomplete="on" novalidate>
-        <!-- Row 1 -->
-        <div class="field">
-          <label for="firstName">Nombre <span class="req">*</span></label>
-          <input id="firstName" name="firstName" type="text" placeholder="Escribe tu nombre" required autocomplete="given-name" />
-        </div>
-
-        <div class="field">
-          <label for="lastName">Apellido <span class="req">*</span></label>
-          <input id="lastName" name="lastName" type="text" placeholder="Escribe tu apellido" required autocomplete="family-name" />
-        </div>
-
-        <div class="field">
-          <label for="cedula">Cédula <span class="req">*</span></label>
-          <input id="cedula" name="cedula" type="text" inputmode="numeric" placeholder="Solo números" required autocomplete="off" />
-        </div>
-
-        <div class="field">
-          <label for="role">Cargo a concursar <span class="req">*</span></label>
-          <select id="role" name="role" required>
-            <option value="">Cargando...</option>
-          </select>
-        </div>
-
-        <!-- Row 2 -->
-        <div class="field">
-          <label for="email">Correo <span class="req">*</span></label>
-          <input id="email" name="email" type="email" placeholder="tucorreo@dominio.com" required autocomplete="email" />
-        </div>
-
-        <div class="field">
-          <label for="phone">Celular <span class="req">*</span></label>
-          <input id="phone" name="phone" type="tel" placeholder="Ej: 3001234567" required autocomplete="tel" />
-        </div>
-
-        <div class="field">
-          <label for="github">GitHub <span class="req">*</span></label>
-          <input id="github" name="github" type="url" placeholder="https://github.com/tuusuario" required autocomplete="off" />
-        </div>
-
-        <div class="field">
-          <label for="cvFile">Hoja de vida (PDF) <span class="req">*</span></label>
-          <input id="cvFile" name="cvFile" type="file" accept="application/pdf,.pdf" required />
-          <small class="hint">Máx. 8 MB — Solo PDF</small>
-        </div>
-
-        <!-- Row 3 -->
-        <div class="field">
-          <label for="linkedin">LinkedIn</label>
-          <input id="linkedin" name="linkedin" type="url" placeholder="https://www.linkedin.com/in/tuperfil" autocomplete="off" />
-        </div>
-
-        <div class="field">
-          <label for="university">Universidad <span class="req">*</span></label>
-          <input id="university" name="university" type="text" placeholder="Escribe tu universidad" required autocomplete="organization" />
-        </div>
-
-        <div class="field">
-          <label for="career">Carrera <span class="req">*</span></label>
-          <input id="career" name="career" type="text" placeholder="Selecciona... o escribe" required autocomplete="off" list="careerList" />
-          <datalist id="careerList">
-            <option value="Ingeniería de Sistemas"></option>
-            <option value="Ingeniería de Software"></option>
-            <option value="Ingeniería Informática"></option>
-            <option value="Tecnología en Desarrollo de Software"></option>
-            <option value="Tecnología en Sistemas"></option>
-            <option value="Otra"></option>
-          </datalist>
-        </div>
-
-        <div class="field">
-          <label for="semester">Semestre <span class="req">*</span></label>
-          <input id="semester" name="semester" type="text" placeholder="Selecciona... o escribe" required autocomplete="off" list="semesterList" />
-          <datalist id="semesterList">
-            <option value="1"></option><option value="2"></option><option value="3"></option><option value="4"></option>
-            <option value="5"></option><option value="6"></option><option value="7"></option><option value="8"></option>
-            <option value="9"></option><option value="10"></option>
-            <option value="Graduado"></option>
-          </datalist>
-        </div>
-
-        <!-- Política + Botón -->
-        <div class="field field-policy">
-          <label class="policy">
-            <input id="acceptPolicy" type="checkbox" />
-            <span>
-              Acepto la
-              <a href="politica-datos.html" target="_blank" rel="noopener">Política de tratamiento de datos</a>.
-            </span>
-          </label>
-        </div>
-
-        <div class="actions">
-          <button id="btnStart" class="btn primary" type="submit">Iniciar evaluación</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="card hidden" id="examCard">
-      <div class="examHead">
-        <h2 class="examTitle">Evaluación</h2>
-        <div class="examMeta" id="uiMsg"></div>
-      </div>
-
-      <div id="examError" class="alert hidden" role="alert"></div>
-
-      <div class="qbox">
-        <div id="qText" class="qText"></div>
-        <textarea id="qAnswer" class="qAnswer" placeholder="Escribe tu respuesta aquí..." rows="7"></textarea>
-      </div>
-
-      <div class="examActions">
-        <button id="btnNext" class="btn primary" type="button">Siguiente</button>
-      </div>
-    </section>
-
-    <div id="modalInfo" class="modal hidden" aria-hidden="true">
-      <div class="modal-backdrop"></div>
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalInfoTitle">
-        <button class="modal-x" type="button" id="modalInfoClose" aria-label="Cerrar">×</button>
-        <h3 id="modalInfoTitle">Antes de iniciar</h3>
-        <p class="modal-text">
-          La evaluación dura 10 minutos. Una vez inicie, no cierres la pestaña.
-          Gracias. Tu información quedará registrada.
-        </p>
-        <div class="modal-actions">
-          <button class="btn ghost" type="button" id="btnCancelStart">Cancelar</button>
-          <button class="btn primary" type="button" id="btnAcceptStart">Continuar</button>
+      <!-- Modal final -->
+      <div class="modal" id="modalDone" aria-hidden="true">
+        <div class="modal-backdrop"></div>
+        <div class="modal-card" role="dialog" aria-modal="true">
+          <h3>Evaluación finalizada</h3>
+          <p class="modal-text">Gracias. Tu información fue registrada.</p>
+          <div class="modal-actions">
+            <button class="btn primary" id="btnDoneOk">OK</button>
+          </div>
         </div>
       </div>
-    </div>
+    </main>
 
-    <div id="modalDone" class="modal hidden" aria-hidden="true">
-      <div class="modal-backdrop"></div>
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalDoneTitle">
-        <button class="modal-x" type="button" id="modalDoneClose" aria-label="Cerrar">×</button>
-        <h3 id="modalDoneTitle">Evaluación enviada</h3>
-        <p class="modal-text">Gracias. Tu evaluación quedó registrada correctamente.</p>
-        <div class="modal-actions">
-          <button class="btn primary" type="button" id="btnDoneOk">Cerrar</button>
-        </div>
-      </div>
-    </div>
-
-  </main>
-
-  <script defer src="src/js/app.js"></script>
-</body>
+    <script src="./app.js"></script>
+  </body>
 </html>
