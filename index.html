@@ -3,179 +3,162 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Evaluación | LabCore Tech</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>LabCore — Evaluación de ingreso</title>
+
+  <link rel="stylesheet" href="src/css/styles.css" />
 </head>
 
 <body>
-  <div class="wrap">
+  <div class="page">
     <!-- Header -->
-    <header class="top">
-      <div class="brand">
-        <div class="brand-left">
-          <img class="logo" src="assets/labcore_logo.png" alt="LabCore Tech" onerror="this.style.display='none'">
-          <div class="brand-txt">
-            <div class="brand-title">LabCore Tech</div>
-            <div class="brand-sub">Evaluación de ingreso</div>
-          </div>
+    <header class="topbar">
+      <div class="topbar__brand">
+        <div class="brand__logo">
+          <img src="LabCore.webp" alt="LabCore" />
         </div>
-
-        <div class="brand-right">
-          <div class="chip chip-muted" id="chipStatus">Sin iniciar</div>
-          <div class="chip chip-muted" id="chipTimer">10:00</div>
+        <div class="brand__text">
+          <div class="brand__name">LabCore</div>
+          <div class="brand__sub">Evaluación de ingreso</div>
         </div>
       </div>
     </header>
 
-    <!-- Card -->
+    <!-- Card principal -->
     <main class="card">
-      <!-- STEP 1 -->
-      <section id="stepForm" class="step">
-        <h1 class="h1">Datos del candidato</h1>
-        <p class="p subtle">Completa los datos obligatorios. Luego selecciona el cargo para cargar la evaluación.</p>
+      <h1 class="title">Datos del postulante</h1>
+      <p class="subtitle">
+        Completa los campos obligatorios y adjunta la hoja de vida antes de iniciar.
+        <span class="hint">Los campos con <b>*</b> son obligatorios.</span>
+      </p>
 
-        <div class="form-grid">
-          <!-- Row 1 (4 cols) -->
+      <!-- Mensajes -->
+      <div id="msgBox" class="msg hidden" role="alert"></div>
+
+      <!-- Form -->
+      <section class="form">
+        <div class="grid">
           <div class="field">
-            <label class="lbl" for="fullName">Nombre completo</label>
-            <input id="fullName" class="inp" type="text" autocomplete="name" placeholder="*" />
-            <div class="err" id="err_fullName"></div>
+            <label class="label">Nombre <span class="req">*</span></label>
+            <input id="first_name" class="input" type="text" placeholder="Escribe tu nombre" autocomplete="given-name" />
           </div>
 
           <div class="field">
-            <label class="lbl" for="cedula">Cédula</label>
-            <input id="cedula" class="inp" type="text" inputmode="numeric" placeholder="*" />
-            <div class="err" id="err_cedula"></div>
+            <label class="label">Apellido <span class="req">*</span></label>
+            <input id="last_name" class="input" type="text" placeholder="Escribe tu apellido" autocomplete="family-name" />
           </div>
 
           <div class="field">
-            <label class="lbl" for="email">Correo</label>
-            <input id="email" class="inp" type="email" autocomplete="email" placeholder="*" />
-            <div class="err" id="err_email"></div>
+            <label class="label">Cédula <span class="req">*</span></label>
+            <input id="id_number" class="input" type="text" placeholder="Solo números" inputmode="numeric" />
           </div>
 
           <div class="field">
-            <label class="lbl" for="phone">Celular</label>
-            <input id="phone" class="inp" type="text" inputmode="tel" placeholder="*" />
-            <div class="err" id="err_phone"></div>
-          </div>
-
-          <!-- Row 2 -->
-          <div class="field">
-            <label class="lbl" for="github">GitHub</label>
-            <input id="github" class="inp" type="text" placeholder="*" />
-            <div class="err" id="err_github"></div>
-          </div>
-
-          <div class="field">
-            <label class="lbl" for="linkedin">LinkedIn</label>
-            <input id="linkedin" class="inp" type="text" placeholder="(si aplica)" />
-            <div class="err" id="err_linkedin"></div>
-          </div>
-
-          <div class="field">
-            <label class="lbl" for="career">Carrera</label>
-            <select id="career" class="inp">
-              <option value="">*</option>
-              <option>Ingeniería de Sistemas</option>
-              <option>Ingeniería de Software</option>
-              <option>Ingeniería Industrial</option>
-              <option>Ingeniería Electrónica</option>
-              <option>Administración</option>
-              <option>Otra</option>
+            <label class="label">Cargo a concursar <span class="req">*</span></label>
+            <select id="position_id" class="select">
+              <option value="">Cargando...</option>
             </select>
-            <div class="err" id="err_career"></div>
           </div>
 
           <div class="field">
-            <label class="lbl" for="cargo">Cargo</label>
-            <select id="cargo" class="inp">
-              <option value="">Cargando cargos...</option>
-            </select>
-            <div class="err" id="err_cargo"></div>
+            <label class="label">Correo <span class="req">*</span></label>
+            <div class="input-with-icon">
+              <input id="email" class="input" type="email" placeholder="tucorreo@dominio.com" autocomplete="email" />
+              <span class="icon-mail" aria-hidden="true">✉</span>
+            </div>
           </div>
 
-          <!-- Row 3 -->
-          <div class="field span2">
-            <label class="lbl" for="notes">Nota (si aplica)</label>
-            <input id="notes" class="inp" type="text" placeholder="(si aplica)" />
-            <div class="err" id="err_notes"></div>
+          <div class="field">
+            <label class="label">Celular <span class="req">*</span></label>
+            <input id="phone" class="input" type="tel" placeholder="Ej: 3001234567" autocomplete="tel" />
           </div>
 
-          <!-- CV "como input normal" -->
-          <div class="field span2">
-            <label class="lbl" for="cvProxy">Hoja de vida (PDF)</label>
+          <div class="field">
+            <label class="label">GitHub <span class="req">*</span></label>
+            <input id="github" class="input" type="url" placeholder="https://github.com/tuusuario" />
+          </div>
 
-            <!-- input real file (hidden) -->
-            <input id="cvFile" type="file" accept="application/pdf" class="file-hidden" />
+          <!-- CV: SIN botón “Seleccionar archivo” -->
+          <div class="field">
+            <label class="label">Hoja de vida (PDF) <span class="req">*</span></label>
 
-            <!-- proxy visible -->
-            <input id="cvProxy" class="inp" type="text" readonly placeholder="* (haz click para adjuntar PDF)" />
-            <div class="hint" id="cvHint">Máximo 8MB. Solo PDF.</div>
-            <div class="err" id="err_cv"></div>
+            <input id="resume_file" class="file-hidden" type="file" accept="application/pdf" />
+
+            <div id="cvPicker" class="fake-input" tabindex="0" role="button" aria-label="Adjuntar hoja de vida PDF">
+              <span id="cvText" class="fake-input__text">Haz clic para adjuntar tu PDF</span>
+              <span class="fake-input__chip">PDF</span>
+            </div>
+
+            <div class="micro">Máx. 8 MB — Solo PDF</div>
+          </div>
+
+          <div class="field">
+            <label class="label">LinkedIn</label>
+            <input id="linkedin" class="input" type="url" placeholder="https://www.linkedin.com/in/tuperfil" />
+          </div>
+
+          <div class="field">
+            <label class="label">Universidad <span class="req">*</span></label>
+            <input id="university" class="input" type="text" placeholder="Escribe tu universidad" />
+          </div>
+
+          <div class="field">
+            <label class="label">Carrera <span class="req">*</span></label>
+            <input id="career" class="input" type="text" placeholder="Selecciona... o escribe" />
+          </div>
+
+          <div class="field">
+            <label class="label">Semestre <span class="req">*</span></label>
+            <input id="semester" class="input" type="text" placeholder="Selecciona... o escribe" />
           </div>
         </div>
 
-        <!-- Policy -->
-        <div class="policy-row">
-          <label class="check">
-            <input id="policyOk" type="checkbox" />
-            <span class="check-ui"></span>
+        <div class="policy">
+          <label class="chk">
+            <input id="accept_policy" type="checkbox" />
+            <span>Acepto la <a href="#" id="policyLink">Política de tratamiento de datos</a>.</span>
           </label>
-
-          <div class="policy-text">
-            <div class="policy-title">Acepto la Política de tratamiento de datos.</div>
-            <a class="policy-link" href="politica-datos.html" target="_blank" rel="noopener">Ver política</a>
-            <div class="err" id="err_policy"></div>
-          </div>
         </div>
 
-        <!-- Actions -->
         <div class="actions">
-          <!-- Quitamos "Cancelar" porque ya existe la X en modal; aquí no hace falta -->
-          <button id="btnStart" class="btn primary" type="button">
-            Iniciar evaluación
-          </button>
-          <div class="actions-note" id="startNote"></div>
-        </div>
-      </section>
-
-      <!-- STEP 2 -->
-      <section id="stepExam" class="step hidden" aria-hidden="true">
-        <div class="exam-head">
-          <div>
-            <h2 class="h2" id="examTitle">Evaluación</h2>
-            <div class="sub" id="examMeta"></div>
-          </div>
-          <div class="exam-right">
-            <div class="chip chip-warn" id="chipIncidents">Incidentes: 0</div>
-          </div>
-        </div>
-
-        <div id="questionsWrap" class="questions"></div>
-
-        <div class="exam-actions">
-          <button id="btnSubmit" class="btn primary" type="button">Enviar evaluación</button>
-          <div class="small" id="submitNote"></div>
+          <button id="btnStart" class="btn primary" type="button">Iniciar evaluación</button>
         </div>
       </section>
     </main>
 
-    <!-- Modal -->
+    <!-- MODAL (sin Cancelar) -->
     <div id="modal" class="modal hidden" aria-hidden="true">
-      <div class="modal-card">
-        <div class="modal-top">
-          <div class="modal-title" id="modalTitle">Mensaje</div>
-          <button class="modal-x" id="modalX" aria-label="Cerrar">✕</button>
-        </div>
-        <div class="modal-body" id="modalBody"></div>
-        <div class="modal-actions">
-          <button class="btn ghost" id="modalOk">OK</button>
+      <div class="modal__overlay" id="modalOverlay"></div>
+      <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <button class="modal__close" id="modalClose" aria-label="Cerrar">×</button>
+        <h2 id="modalTitle" class="modal__title">Antes de iniciar</h2>
+        <p class="modal__text">
+          La evaluación dura 10 minutos. Una vez inicie, no cierres la pestaña.
+          Gracias. Tu información quedará registrada.
+        </p>
+        <div class="modal__actions">
+          <button id="modalContinue" class="btn primary" type="button">Continuar</button>
         </div>
       </div>
     </div>
+
+    <!-- Sección evaluación (placeholder, el JS la controla) -->
+    <section id="evalWrap" class="eval hidden">
+      <div class="eval__top">
+        <div class="eval__title">Evaluación</div>
+        <div class="eval__timer">
+          <span>Tiempo:</span> <b id="timer">10:00</b>
+        </div>
+      </div>
+
+      <div id="evalBody" class="eval__body"></div>
+
+      <div class="eval__footer">
+        <button id="btnSubmit" class="btn primary" type="button">Enviar evaluación</button>
+      </div>
+    </section>
+
   </div>
 
-  <script src="app.js"></script>
+  <script src="src/js/app.js"></script>
 </body>
 </html>
