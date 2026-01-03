@@ -5,7 +5,7 @@
 
 // ================= CONFIG =================
 const PROTRACK_BASE = "https://protrack-49um.onrender.com"; // backend real (Render)
-const PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98"; // Si en Render configuraste PUBLIC_EVAL_API_KEY, ponlo aquí (NO ES SECRETO si lo pones en GitHub Pages)
+const PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98";
 
 const ENDPOINT_POSITIONS = `${PROTRACK_BASE}/api/gh/public/positions`;
 const ENDPOINT_EVAL = `${PROTRACK_BASE}/api/gh/public/eval`;          // ?position_id=...
@@ -24,6 +24,14 @@ function apiHeaders() {
   const h = { "Content-Type": "application/json" };
   if (PUBLIC_EVAL_API_KEY && PUBLIC_EVAL_API_KEY.trim()) {
     h["X-API-Key"] = PUBLIC_EVAL_API_KEY.trim();
+  }
+  return h;
+}
+
+function buildHeaders() {
+  const h = { "Content-Type": "application/json" };
+  if (PUBLIC_EVAL_API_KEY && PUBLIC_EVAL_API_KEY.trim()) {
+    h["X-API-Key"] = PUBLIC_EVAL_API_KEY.trim();  // <- EXACTO: X-API-Key
   }
   return h;
 }
