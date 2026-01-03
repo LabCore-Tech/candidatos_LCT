@@ -377,8 +377,3 @@ body{
   .brand-name{font-size: 24px;}
   .card-title{font-size: 28px;}
 }
-
-/* --- File input custom: texto normal --- */
-.fileFake, .fileFake *{
-  font-weight: 400 !important;
-}

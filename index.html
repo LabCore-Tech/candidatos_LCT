@@ -81,20 +81,10 @@
         </div>
 
         <div class="field">
-          <label for="cv">Hoja de vida (PDF) <span class="req">*</span></label>
-
-          <div class="fileField" id="cvPicker">
-            <!-- input real (invisible, pero encima capturando el click) -->
-            <input id="cv" name="cv" type="file" accept="application/pdf,.pdf" required class="fileNative" />
-
-            <!-- UI visible -->
-            <div class="fileFake" role="button" tabindex="0" aria-label="Adjuntar hoja de vida en PDF">
-              <span class="fileText" id="cvText">Haz clic para adjuntar tu PDF</span>
-            </div>
-          </div>
-              <span class="fileHint">Máx. 8 MB — Solo PDF</span>
+          <label for="cvFile">Hoja de vida (PDF) <span class="req">*</span></label>
+          <input id="cvFile" name="cvFile" type="file" accept="application/pdf,.pdf" required />
+          <small class="hint">Máx. 8 MB — Solo PDF</small>
         </div>
-
 
         <!-- Row 3 -->
         <div class="field">
