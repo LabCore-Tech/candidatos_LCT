@@ -2,36 +2,37 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>LabCore | Evaluación de ingreso</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 
 <body>
   <div class="page">
     <header class="topbar">
-      <div class="topbar__brand">
-        <img class="logo" src="LabCore.webp" alt="LabCore" />
-        <div>
-          <div class="brand__title">LabCore</div>
-          <div class="brand__sub">Evaluación de ingreso</div>
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">
+          <!-- si tienes tu logo como imagen, cambia esto por <img src="LabCore.webp" ...> -->
+          <img src="./LabCore.webp" alt="LabCore" onerror="this.style.display='none'; this.parentElement.classList.add('brand-fallback');" />
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">LabCore</div>
+          <div class="brand-sub">Evaluación de ingreso</div>
         </div>
       </div>
     </header>
 
     <main class="content">
-      <!-- FORM CARD -->
       <section class="card">
         <h1>Datos del postulante</h1>
-        <p class="lead">
+        <p class="muted">
           Completa los campos obligatorios y adjunta la hoja de vida antes de iniciar.
-          <span class="note">Los campos con <b>*</b> son obligatorios.</span>
+          <b>Los campos con *</b> son obligatorios.
         </p>
 
-        <div id="formError" class="form-error" hidden></div>
+        <div id="alert" class="alert hidden"></div>
 
-        <form id="candidateForm" autocomplete="off" novalidate>
-          <!-- Row 1 -->
+        <form id="formCandidate" autocomplete="off" novalidate>
           <div class="grid">
             <div class="field">
               <label for="firstName">Nombre <span class="req">*</span></label>
@@ -45,24 +46,22 @@
 
             <div class="field">
               <label for="idNumber">Cédula <span class="req">*</span></label>
-              <input id="idNumber" name="idNumber" type="text" inputmode="numeric" placeholder="Solo números" required />
+              <input id="idNumber" name="idNumber" inputmode="numeric" placeholder="Solo números" required />
             </div>
 
             <div class="field">
-              <label for="role">Cargo a concursar <span class="req">*</span></label>
-              <select id="role" name="role" required>
+              <label for="positionSelect">Cargo a concursar <span class="req">*</span></label>
+              <select id="positionSelect" name="positionSelect" required>
                 <option value="" selected>Cargando...</option>
               </select>
+              <div class="field-hint" id="posHint"></div>
             </div>
-          </div>
 
-          <!-- Row 2 -->
-          <div class="grid">
             <div class="field">
               <label for="email">Correo <span class="req">*</span></label>
-              <div class="input-icon">
+              <div class="input-with-icon">
                 <input id="email" name="email" type="email" placeholder="tucorreo@dominio.com" required />
-                <span class="icon">@</span>
+                <span class="icon" aria-hidden="true">✉️</span>
               </div>
             </div>
 
@@ -76,25 +75,21 @@
               <input id="github" name="github" type="url" placeholder="https://github.com/tuusuario" required />
             </div>
 
-            <!-- CV Upload (SIN botón "Seleccionar archivo") -->
             <div class="field">
-              <label for="cvFile">Hoja de vida (PDF) <span class="req">*</span></label>
+              <label>Hoja de vida (PDF) <span class="req">*</span></label>
 
-              <!-- input real (oculto) -->
-              <input id="cvFile" name="cvFile" type="file" accept="application/pdf,.pdf" required hidden>
+              <!-- input real oculto -->
+              <input id="cvFile" name="cvFile" type="file" accept="application/pdf" class="hidden-file" />
 
-              <!-- UI tipo "input" -->
-              <div id="cvPicker" class="file-pill" role="button" tabindex="0" aria-label="Adjuntar hoja de vida">
-                <span id="cvPickerText" class="file-pill__text">Haz clic para adjuntar tu PDF</span>
+              <!-- campo “tipo input” clickeable -->
+              <button type="button" id="cvPick" class="file-pick" aria-describedby="cvHelp">
+                <span id="cvPickText">Haz clic para adjuntar tu PDF</span>
                 <span class="file-badge">PDF</span>
-              </div>
+              </button>
 
-              <small class="hint">Máx. 8 MB — Solo PDF</small>
+              <div class="field-hint" id="cvHelp">Máx. 8 MB — Solo PDF</div>
             </div>
-          </div>
 
-          <!-- Row 3 -->
-          <div class="grid">
             <div class="field">
               <label for="linkedin">LinkedIn</label>
               <input id="linkedin" name="linkedin" type="url" placeholder="https://www.linkedin.com/in/tuperfil" />
@@ -116,55 +111,52 @@
             </div>
           </div>
 
-          <div class="checks">
-            <label class="check">
-              <input id="acceptPolicy" type="checkbox" required />
-              <span>Acepto la <a href="#" id="policyLink">Política de tratamiento de datos</a>.</span>
-            </label>
+          <div class="checkline">
+            <input id="acceptPolicy" type="checkbox" />
+            <label for="acceptPolicy">Acepto la <a href="#" id="policyLink">Política de tratamiento de datos</a>.</label>
           </div>
 
           <div class="actions">
-            <button id="startBtn" type="button" class="btn primary" disabled>Iniciar evaluación</button>
+            <button type="button" id="btnStart" class="btn primary" disabled>Iniciar evaluación</button>
           </div>
         </form>
       </section>
 
-      <!-- EXAM CARD -->
-      <section id="examCard" class="card" hidden>
-        <div class="exam-head">
-          <div>
-            <h2>Evaluación</h2>
-            <div class="exam-meta">
-              <span id="timerLabel">10:00</span>
-              <span class="dot">•</span>
-              <span>Incidentes: <b id="incidentCount">0</b></span>
-            </div>
+      <section id="evalSection" class="card hidden">
+        <div class="eval-header">
+          <h2>Evaluación</h2>
+          <div class="eval-meta">
+            <div class="pill">Tiempo: <b id="timeLeft">10:00</b></div>
+            <div class="pill">Incidentes: <b id="incidents">0</b></div>
           </div>
-
-          <button id="submitBtn" class="btn primary" type="button" disabled>Enviar evaluación</button>
         </div>
 
-        <div id="examBody" class="exam-body"></div>
+        <div id="evalContainer" class="eval-container"></div>
+
+        <div class="actions">
+          <button type="button" id="btnSubmit" class="btn primary">Enviar evaluación</button>
+        </div>
       </section>
     </main>
   </div>
 
-  <!-- MODAL “Antes de iniciar” (SIN botón Cancelar) -->
-  <div id="startModal" class="modal" hidden>
-    <div class="modal__backdrop"></div>
-    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="startModalTitle">
-      <button class="modal__close" id="startModalClose" aria-label="Cerrar">×</button>
-      <h3 id="startModalTitle">Antes de iniciar</h3>
-      <p class="muted">
-        La evaluación dura 10 minutos. Una vez inicie, no cierres la pestaña.
-        Gracias. Tu información quedará registrada.
-      </p>
-      <div class="modal__actions">
-        <button id="btnContinueStart" class="btn primary" type="button">Continuar</button>
+  <!-- MODAL -->
+  <div id="modalBackdrop" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <div class="modal-top">
+        <div>
+          <div id="modalTitle" class="modal-title">Antes de iniciar</div>
+          <div class="modal-sub">La evaluación dura 10 minutos. Una vez inicie, no cierres la pestaña. Gracias. Tu información quedará registrada.</div>
+        </div>
+        <button id="modalClose" class="modal-x" aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="modal-actions">
+        <button id="modalContinue" class="btn primary">Continuar</button>
       </div>
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
