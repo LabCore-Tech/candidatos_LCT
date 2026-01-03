@@ -18,6 +18,21 @@ const VIOLATION_LIMIT = 50;
 // =============== Helpers UI ===============
 function $(id) { return document.getElementById(id); }
 
+function initCvPicker() {
+  const input = $("cvFile");     // <-- ESTE ID debe coincidir con tu input real
+  const text  = $("cvText");     // <-- ESTE es el span donde se muestra el nombre
+
+  if (!input || !text) return;
+
+  const paint = () => {
+    const f = input.files && input.files[0];
+    text.textContent = f ? f.name : "Haz clic para adjuntar tu PDF";
+  };
+
+  input.addEventListener("change", paint);
+  paint();
+}
+
 function setText(id, txt) {
   const el = $(id);
   if (el) el.textContent = txt;
@@ -402,7 +417,9 @@ async function finishExam(timedOut = false) {
 // =============== Wire events ===============
 document.addEventListener("DOMContentLoaded", () => {
   loadPositions();
+  initCvPicker();
 
+  
   $("btnStart")?.addEventListener("click", (e) => {
     e.preventDefault();
     startExam();
