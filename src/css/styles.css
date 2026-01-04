@@ -2,173 +2,126 @@
    Scope: SOLO index
 */
 
-#page-index.index-card{
-  padding: 18px;
+* {
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-/* ===== HEADER centrado real ===== */
-#page-index .index-head{
-  display: grid;
-  grid-template-columns: 1fr auto 1fr; /* left | title | icons */
-  align-items: start;
-  gap: 14px;
-  margin-bottom: 10px;
+body {
+  margin: 0;
+  background: #f4f6fb;
+  color: #1f2937;
 }
 
-#page-index .index-title{
-  grid-column: 2;
-  text-align: center;
+.header {
+  padding: 20px;
 }
 
-#page-index .index-icons{
-  grid-column: 3;
-  justify-self: end;
+.header-box {
+  max-width: 1100px;
+  margin: auto;
   display: flex;
-  gap: 10px;
+  gap: 16px;
   align-items: center;
-}
-
-/* ===== Icon buttons ===== */
-#page-index .icon-btn{
-  width: 44px;
-  height: 44px;
-  padding: 0;
+  background: white;
+  padding: 16px 20px;
   border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  display: grid;
-  place-items: center;
-  box-shadow: var(--shadow);
-  line-height: 0;
-  transition: transform .12s ease, background .12s ease;
 }
 
-#page-index .icon-btn svg{
-  width: 20px;
-  height: 20px;
-  display: block;
-  fill: none;
-  color: var(--text);
+.header-box img {
+  width: 44px;
 }
 
-#page-index .icon-btn:hover{
-  transform: translateY(-1px);
-  background: var(--panel2);
-}
-
-/* ===== MÓDULOS ===== */
-#page-index .modules{
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0,1fr));
-  gap: 14px;
-  margin-top: 12px;
-}
-
-@media (max-width: 920px){
-  #page-index .modules{ grid-template-columns: 1fr; }
-}
-
-#page-index .module-btn{
+.container {
+  max-width: 1100px;
+  margin: 24px auto;
+  background: white;
+  padding: 32px;
   border-radius: 18px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  box-shadow: var(--shadow);
-  padding: 16px;
+}
+
+.subtitle {
+  color: #6b7280;
+  margin-bottom: 24px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.grid div {
   display: flex;
   flex-direction: column;
+}
+
+label {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+input, select {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: #7c3aed;
+  background: white;
+}
+
+.checkbox {
+  margin-top: 20px;
+  display: flex;
+  gap: 8px;
+}
+
+.primary {
+  margin-top: 24px;
+  padding: 14px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg,#e6d3a3,#cbb26a);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.primary:hover {
+  opacity: 0.9;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,.55);
+  display: flex;
   align-items: center;
-  text-align: center;
-  gap: 10px;
-  transition: transform .12s ease, background .12s ease;
+  justify-content: center;
+  z-index: 999;
 }
 
-/* Consistencia tipográfica (light/dark) */
-#page-index .module-btn,
-#page-index .module-btn *{
-  color: var(--text);
+.hidden {
+  display: none;
 }
 
-#page-index .module-btn:hover{
-  transform: translateY(-2px);
-  background: var(--panel2);
+.modal-box {
+  background: white;
+  padding: 28px;
+  border-radius: 20px;
+  width: 420px;
+  position: relative;
 }
 
-#page-index .module-ico{
-  width: 54px;
-  height: 54px;
-  border-radius: 16px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.04);
-  display: grid;
-  place-items: center;
-}
-
-#page-index .module-ico svg{
-  width: 26px;
-  height: 26px;
-  color: var(--text);
-}
-
-#page-index .module-name{
-  font-weight: 900;
-  font-size: 16px;
-}
-
-#page-index .module-desc{
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.35;
-}
-
-/* ===== COLORES DE ICONOS PARA MÓDULOS ===== */
-/* Gestión Humana - Azul */
-#page-index .module-btn:nth-child(1) .module-ico svg {
-  color: #3b82f6;
-}
-
-/* Gestión - Verde */
-#page-index .module-btn:nth-child(2) .module-ico svg {
-  color: #10b981;
-}
-
-/* Operativa - Naranja */
-#page-index .module-btn:nth-child(3) .module-ico svg {
-  color: #f97316;
-}
-
-/* Botón de configuración - Púrpura */
-#page-index .icon-btn.config-btn svg {
-  color: #8b5cf6;
-}
-
-/* Ajustes para tema oscuro - colores más suaves */
-@media (prefers-color-scheme: dark) {
-  #page-index .module-btn:nth-child(1) .module-ico svg {
-    color: #60a5fa;
-  }
-  #page-index .module-btn:nth-child(2) .module-ico svg {
-    color: #34d399;
-  }
-  #page-index .module-btn:nth-child(3) .module-ico svg {
-    color: #fb923c;
-  }
-  #page-index .icon-btn.config-btn svg {
-    color: #a78bfa;
-  }
-}
-
-/* Ajustes para tema claro - colores vibrantes */
-@media (prefers-color-scheme: light) {
-  #page-index .module-btn:nth-child(1) .module-ico svg {
-    color: #2563eb;
-  }
-  #page-index .module-btn:nth-child(2) .module-ico svg {
-    color: #059669;
-  }
-  #page-index .module-btn:nth-child(3) .module-ico svg {
-    color: #ea580c;
-  }
-  #page-index .icon-btn.config-btn svg {
-    color: #7c3aed;
-  }
+.close {
+  position: absolute;
+  right: 14px;
+  top: 10px;
+  border: none;
+  background: none;
+  font-size: 20px;
+  cursor: pointer;
 }
