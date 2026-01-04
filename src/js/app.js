@@ -1,385 +1,411 @@
-/* =========================
-   LabCore Tech - Evaluación (Repo A)
-   Conecta con ProTrack (Repo B) vía endpoints públicos /api/gh/public/*
-   ========================= */
+/* =========================================================
+   LabCore - Evaluación de ingreso (GitHub Pages)
+   ========================================================= */
 
-// ================= CONFIG =================
-const PROTRACK_BASE = "https://protrack-49um.onrender.com"; // backend real (Render)
-const PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98";
+(() => {
+  "use strict";
 
-const ENDPOINT_POSITIONS = `${PROTRACK_BASE}/api/gh/public/positions`;
-const ENDPOINT_EVAL = `${PROTRACK_BASE}/api/gh/public/eval`; // ?position_id=...
-const ENDPOINT_SUBMIT = `${PROTRACK_BASE}/api/gh/public/submit`; // POST
+  // ============ CONFIG ============
+  const PROTRACK_BASE = "https://protrack-49um.onrender.com";
+  const ENDPOINT_POSITIONS = `${PROTRACK_BASE}/api/gh/public/positions`;
+  const ENDPOINT_EVAL      = `${PROTRACK_BASE}/api/gh/public/eval`;     // ?position_id=...
+  const ENDPOINT_SUBMIT    = `${PROTRACK_BASE}/api/gh/public/submit`;   // POST
 
-const MAX_CV_MB = 8;
-const LOCK_KEY = "labcore_eval_lock_v2";
-const VIOLATION_LIMIT = 50;
+  // Header EXACTO: X-API-Key
+  const PUBLIC_EVAL_API_KEY =
+    document.querySelector('meta[name="PUBLIC_EVAL_API_KEY"]')?.content?.trim()
+    || "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98";
 
-// ================= HELPERS =================
-function $(id) {
-  return document.getElementById(id);
-}
+  const MAX_CV_MB = 8;
+  const LOCK_KEY = "labcore_eval_lock_v2";
 
-function apiHeaders() {
-  return {
-    "Content-Type": "application/json",
-    "X-API-Key": PUBLIC_EVAL_API_KEY,
-  };
-}
+  // ============ HELPERS ============
+  const $ = (id) => document.getElementById(id);
 
-function setUiMsg(text, type = "info") {
-  const el = $("uiMsg");
-  if (!el) return;
-  el.textContent = text || "";
-  el.classList.remove("hidden");
-  el.classList.toggle("msg-error", type === "error");
-  if (!text) el.classList.add("hidden");
-}
+  function show(el){ if (el) el.classList.remove("hidden"); }
+  function hide(el){ if (el) el.classList.add("hidden"); }
 
-function showExamError(text) {
-  const el = $("examError");
-  if (!el) return;
-  el.textContent = text || "";
-  el.classList.remove("hidden");
-  if (!text) el.classList.add("hidden");
-}
-
-function onlyDigits(v) {
-  return String(v || "").replace(/\D+/g, "");
-}
-
-async function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onload = () => {
-      const res = fr.result || "";
-      const parts = String(res).split(",");
-      resolve(parts.length > 1 ? parts[1] : "");
-    };
-    fr.onerror = reject;
-    fr.readAsDataURL(file);
-  });
-}
-
-function mb(sizeBytes) {
-  return sizeBytes / (1024 * 1024);
-}
-
-function validateRequired() {
-  const firstName = $("firstName")?.value?.trim();
-  const lastName = $("lastName")?.value?.trim();
-  const idNumber = onlyDigits($("idNumber")?.value);
-  const email = $("email")?.value?.trim();
-  const phone = $("phone")?.value?.trim();
-  const github = $("github")?.value?.trim();
-  const position = $("positionSelect")?.value;
-  const uni = $("university")?.value?.trim();
-  const career = $("career")?.value?.trim();
-  const semester = $("semester")?.value?.trim();
-  const policy = $("policyCheck")?.checked;
-
-  const cvFile = $("cvFile")?.files?.[0];
-
-  if (!firstName || !lastName || !idNumber || !email || !phone || !github) return false;
-  if (!position) return false;
-  if (!uni || !career || !semester) return false;
-  if (!policy) return false;
-  if (!cvFile) return false;
-
-  if (cvFile.type !== "application/pdf") {
-    setUiMsg("La hoja de vida debe ser un PDF.", "error");
-    return false;
-  }
-  if (mb(cvFile.size) > MAX_CV_MB) {
-    setUiMsg(`El PDF supera el máximo permitido (${MAX_CV_MB} MB).`, "error");
-    return false;
+  function setMsg(id, msg){
+    const el = $(id);
+    if (!el) return;
+    if (!msg){ el.textContent=""; el.style.display="none"; return; }
+    el.textContent = msg;
+    el.style.display = "block";
   }
 
-  return true;
-}
-
-function updateStartBtnState() {
-  const btn = $("btnStart");
-  if (!btn) return;
-  btn.disabled = !validateRequired();
-}
-
-// ================= POSITIONS =================
-async function loadPositions() {
-  const sel = $("positionSelect");
-  if (!sel) return;
-
-  sel.innerHTML = `<option value="" selected disabled>Cargando...</option>`;
-
-  try {
-    const r = await fetch(ENDPOINT_POSITIONS, {
-      method: "GET",
-      headers: apiHeaders(),
-    });
-
-    const data = await r.json().catch(() => null);
-
-    if (!r.ok || !data) {
-      throw new Error((data && data.msg) || `HTTP ${r.status}`);
-    }
-    if (data.ok === false) {
-      throw new Error(data.msg || "unauthorized");
-    }
-
-    const positions =
-      (Array.isArray(data.positions) && data.positions) ||
-      (Array.isArray(data.data) && data.data) ||
-      (Array.isArray(data.items) && data.items) ||
-      (Array.isArray(data) && data) ||
-      [];
-
-    if (!positions.length) {
-      sel.innerHTML = `<option value="" selected disabled>No hay cargos disponibles</option>`;
-      return;
-    }
-
-    const opt = (id, name) =>
-      `<option value="${String(id).replace(/"/g, "&quot;")}">${String(name)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")}</option>`;
-
-    sel.innerHTML =
-      `<option value="" selected disabled>Selecciona un cargo...</option>` +
-      positions
-        .map((p) => {
-          if (p && typeof p === "object") {
-            const pid = p.id ?? p.position_id ?? p.value ?? p.code ?? p.cargo_id ?? p.name;
-            const pname = p.name ?? p.cargo ?? p.title ?? p.label ?? String(pid);
-            return opt(pid, pname);
-          }
-          return opt(p, p);
-        })
-        .join("");
-  } catch (err) {
-    console.error("loadPositions error:", err);
-    sel.innerHTML = `<option value="" selected disabled>No hay cargos disponibles</option>`;
-    showExamError(
-      "No se pudieron cargar los cargos. Verifica que el endpoint esté activo y que la API Key sea válida."
-    );
-  }
-}
-
-// ================= EVAL BUILD =================
-function pickOnePerModuleFromFlat(flat) {
-  // Si el backend te devuelve lista plana, esta función selecciona una por módulo (si viene module_id).
-  if (!Array.isArray(flat)) return [];
-  const byMod = new Map();
-  for (const q of flat) {
-    const mid = q.module_id ?? q.module ?? "mod";
-    if (!byMod.has(mid)) byMod.set(mid, []);
-    byMod.get(mid).push(q);
-  }
-  const out = [];
-  for (const [mid, arr] of byMod.entries()) {
-    // Escoge la primera (o random si quieres)
-    out.push(arr[0]);
-  }
-  return out;
-}
-
-function renderExamFromJson(json) {
-  // Esto debe respetar tu estructura anterior. Aquí NO destruyo tu layout: solo renderiza en #examContainer.
-  const container = $("examContainer");
-  if (!container) return;
-
-  container.innerHTML = "";
-
-  // Soportar varias formas de payload
-  const questions = json?.questions || json?.data?.questions || json?.items || json?.data || [];
-  const finalQuestions = Array.isArray(questions) ? questions : [];
-
-  if (!finalQuestions.length) {
-    container.innerHTML = `<div class="msg">No se encontraron preguntas para este cargo.</div>`;
-    return;
+  function buildHeaders(extra = {}){
+    return { "Content-Type":"application/json", "X-API-Key": PUBLIC_EVAL_API_KEY, ...extra };
   }
 
-  // Render simple (si tú tienes un render más avanzado, se adapta a tu JSON exacto)
-  finalQuestions.forEach((q, idx) => {
-    const card = document.createElement("div");
-    card.className = "q-card";
-    card.style.border = "1px solid rgba(15,23,42,.10)";
-    card.style.borderRadius = "16px";
-    card.style.padding = "14px 16px";
-    card.style.marginBottom = "12px";
-    card.style.background = "rgba(248,250,252,.9)";
+  async function apiGetJson(url){
+    const r = await fetch(url, { method:"GET", headers: buildHeaders() });
+    const txt = await r.text();
+    let json = null;
+    try{ json = txt ? JSON.parse(txt) : null; } catch { json = null; }
 
-    const title = document.createElement("div");
-    title.style.fontWeight = "900";
-    title.style.marginBottom = "8px";
-    title.textContent = `${idx + 1}. ${q.title || q.question || "Pregunta"}`;
+    if (!r.ok) throw new Error(json?.msg || json?.message || `HTTP ${r.status}`);
+    if (json && json.ok === false) throw new Error(json.msg || json.message || "Unauthorized");
+    return json;
+  }
 
-    const opts = document.createElement("div");
-    opts.style.display = "grid";
-    opts.style.gap = "8px";
+  async function apiPostJson(url, payload){
+    const r = await fetch(url, { method:"POST", headers: buildHeaders(), body: JSON.stringify(payload) });
+    const txt = await r.text();
+    let json = null;
+    try{ json = txt ? JSON.parse(txt) : null; } catch { json = null; }
 
-    const answers = q.answers || q.options || q.choices || [];
-    (Array.isArray(answers) ? answers : []).forEach((a, j) => {
-      const label = document.createElement("label");
-      label.style.display = "flex";
-      label.style.alignItems = "center";
-      label.style.gap = "10px";
-      label.style.fontWeight = "650";
+    if (!r.ok) throw new Error(json?.msg || json?.message || `HTTP ${r.status}`);
+    if (json && json.ok === false) throw new Error(json.msg || json.message || "Unauthorized");
+    return json;
+  }
 
-      const input = document.createElement("input");
-      input.type = "radio";
-      input.name = `q_${q.id ?? idx}`;
-      input.value = a.id ?? a.value ?? a;
-      input.dataset.qid = q.id ?? idx;
+  function escapeHtml(s){
+    return String(s ?? "")
+      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  }
 
-      const span = document.createElement("span");
-      span.textContent = a.text ?? a.label ?? String(a);
+  // ============ CV UI ============
+  function humanFileSize(bytes){
+    const units = ["B","KB","MB","GB"];
+    let n = bytes, u = 0;
+    while (n >= 1024 && u < units.length - 1){ n /= 1024; u++; }
+    return `${n.toFixed(u === 0 ? 0 : 1)} ${units[u]}`;
+  }
 
-      label.appendChild(input);
-      label.appendChild(span);
-      opts.appendChild(label);
-    });
-
-    card.appendChild(title);
-    card.appendChild(opts);
-    container.appendChild(card);
-  });
-}
-
-// ================= MODAL / FLOW =================
-function openPreStart() {
-  $("preStartBackdrop")?.classList.remove("hidden");
-}
-
-function closePreStart() {
-  $("preStartBackdrop")?.classList.add("hidden");
-}
-
-function showExam() {
-  $("examSection")?.classList.remove("hidden");
-  window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
-}
-
-// ================= INIT =================
-document.addEventListener("DOMContentLoaded", async () => {
-  setUiMsg("", "info");
-  showExamError("");
-
-  // Validaciones en vivo
-  ["firstName", "lastName", "idNumber", "email", "phone", "github", "linkedin", "university", "career", "semester"].forEach((id) => {
-    $(id)?.addEventListener("input", () => {
-      if (id === "idNumber") $("idNumber").value = onlyDigits($("idNumber").value);
-      updateStartBtnState();
-    });
-  });
-  $("policyCheck")?.addEventListener("change", updateStartBtnState);
-  $("positionSelect")?.addEventListener("change", updateStartBtnState);
-  $("cvFile")?.addEventListener("change", updateStartBtnState);
-
-  // Cargar cargos
-  await loadPositions();
-  
-  // CV input (oculto) + campo visual
-  const cvFile = $("cvFile");
-  const cvDisplay = $("cvDisplay");
-  const cvDisplayText = $("cvDisplayText");
-  if (cvFile && cvDisplay) {
-    cvDisplay.addEventListener("click", () => cvFile.click());
-    cvFile.addEventListener("change", () => {
-      const f = cvFile.files && cvFile.files[0];
-      if (cvDisplayText) cvDisplayText.textContent = f ? f.name : "Haz clic para adjuntar tu PDF";
+  async function fileToBase64(file){
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => {
+        const res = fr.result || "";
+        const parts = String(res).split(",");
+        resolve(parts.length > 1 ? parts[1] : "");
+      };
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
     });
   }
 
-  updateStartBtnState();
+  function bindCv(){
+    const input = $("cvFile");
+    const selected = $("cvSelected");
+    const drop = $("cvDrop");
+    const dropText = $("cvDropText");
+    if (!input || !selected || !drop || !dropText) return;
 
-  // Modal
-  $("btnStart")?.addEventListener("click", () => {
-    setUiMsg("", "info");
-    if (!validateRequired()) {
-      setUiMsg("Debes completar todos los campos obligatorios.", "error");
-      return;
-    }
-    openPreStart();
-  });
+    drop.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " "){
+        e.preventDefault();
+        input.click();
+      }
+    });
 
-  $("btnCloseModal")?.addEventListener("click", closePreStart);
+    input.addEventListener("change", () => {
+      const f = input.files?.[0];
+      if (!f){
+        selected.textContent = "";
+        dropText.textContent = "Haz clic para adjuntar tu PDF";
+        return;
+      }
+      selected.textContent = `${f.name} · ${humanFileSize(f.size)}`;
+      dropText.textContent = f.name;
+    });
+  }
 
-  $("btnContinue")?.addEventListener("click", async () => {
-    closePreStart();
+  // ============ POSITIONS ============
+  function normalizePositions(json){
+    if (!json) return [];
+    if (Array.isArray(json)) return json;
+    if (Array.isArray(json.data)) return json.data;
+    if (Array.isArray(json.positions)) return json.positions;
+    return [];
+  }
 
-    const positionId = $("positionSelect")?.value;
-    if (!positionId) return;
+  function optionLabel(p){
+    return (p?.name || p?.title || p?.role || p?.position || "").trim();
+  }
 
-    try {
-      showExamError("");
-      const url = `${ENDPOINT_EVAL}?position_id=${encodeURIComponent(positionId)}`;
-      const r = await fetch(url, { headers: apiHeaders() });
-      const data = await r.json().catch(() => null);
+  async function loadPositions(){
+    const sel = $("cargo");
+    if (!sel) return;
 
-      if (!r.ok || !data) throw new Error(`HTTP ${r.status}`);
-      if (data.ok === false) throw new Error(data.msg || "No se pudo cargar evaluación");
+    sel.innerHTML = `<option value="">Cargando...</option>`;
+    sel.disabled = true;
 
-      renderExamFromJson(data);
-      showExam();
-    } catch (e) {
-      console.error(e);
-      showExamError("No se pudo cargar la evaluación. Revisa el endpoint y el JSON devuelto.");
-    }
-  });
+    try{
+      const json = await apiGetJson(ENDPOINT_POSITIONS);
+      const list = normalizePositions(json);
 
-  // Enviar evaluación (tu lógica real puede ser más completa; aquí dejo el POST funcionando)
-  $("btnSubmit")?.addEventListener("click", async () => {
-    try {
-      const cv = $("cvFile")?.files?.[0];
-      if (!cv) {
-        showExamError("Adjunta tu hoja de vida antes de enviar.");
+      if (!list.length){
+        sel.innerHTML = `<option value="">No hay cargos disponibles</option>`;
+        sel.disabled = true;
         return;
       }
 
-      // Recoger respuestas
-      const answers = [];
-      document.querySelectorAll('#examContainer input[type="radio"]:checked').forEach((el) => {
-        answers.push({
-          question_id: el.dataset.qid,
-          answer: el.value,
-        });
-      });
+      sel.innerHTML =
+        `<option value="">Selecciona…</option>` +
+        list.map((p) => {
+          const id = p.id ?? p.position_id ?? p.code ?? p.value;
+          return `<option value="${String(id)}">${escapeHtml(optionLabel(p) || `Cargo ${id}`)}</option>`;
+        }).join("");
 
-      const payload = {
-        first_name: $("firstName")?.value?.trim(),
-        last_name: $("lastName")?.value?.trim(),
-        id_number: onlyDigits($("idNumber")?.value),
-        email: $("email")?.value?.trim(),
-        phone: $("phone")?.value?.trim(),
-        github: $("github")?.value?.trim(),
-        linkedin: $("linkedin")?.value?.trim(),
-        university: $("university")?.value?.trim(),
-        career: $("career")?.value?.trim(),
-        semester: $("semester")?.value?.trim(),
-        position_id: $("positionSelect")?.value,
-        cv_filename: cv.name,
-        cv_base64: await fileToBase64(cv),
-        answers,
-      };
-
-      const r = await fetch(ENDPOINT_SUBMIT, {
-        method: "POST",
-        headers: apiHeaders(),
-        body: JSON.stringify(payload),
-      });
-
-      const data = await r.json().catch(() => null);
-
-      if (!r.ok || !data) throw new Error(`HTTP ${r.status}`);
-      if (data.ok === false) throw new Error(data.msg || "No se pudo enviar");
-
-      showExamError("");
-      setUiMsg("✅ Evaluación enviada correctamente.", "info");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (e) {
-      console.error(e);
-      showExamError("No se pudo enviar la evaluación. Revisa consola y Network.");
+      sel.disabled = false;
+    }catch(e){
+      console.error("loadPositions error:", e);
+      sel.innerHTML = `<option value="">No hay cargos disponibles</option>`;
+      sel.disabled = true;
+      setMsg("formMsg", `No se pudieron cargar los cargos: ${e.message}`);
     }
+  }
+
+  // ============ VALIDATION ============
+  function getValue(id){ return ($(id)?.value || "").trim(); }
+
+  function validateForm(){
+    const required = [
+      ["nombre","Nombre"],
+      ["apellido","Apellido"],
+      ["cedula","Cédula"],
+      ["correo","Correo"],
+      ["celular","Celular"],
+      ["github","GitHub"],
+      ["universidad","Universidad"],
+      ["carrera","Carrera"],
+      ["semestre","Semestre"],
+      ["cargo","Cargo a concursar"],
+    ];
+
+    for (const [id,label] of required){
+      const v = getValue(id);
+      if (!v) return `Falta: ${label}.`;
+    }
+
+    if ($("acceptPolicy") && !$("acceptPolicy").checked){
+      return "Debes aceptar la política de tratamiento de datos.";
+    }
+
+    const cv = $("cvFile")?.files?.[0];
+    if (!cv) return "Adjunta tu hoja de vida (PDF).";
+    if (cv.type !== "application/pdf") return "La hoja de vida debe ser un PDF.";
+    if (cv.size > MAX_CV_MB * 1024 * 1024) return `El PDF supera ${MAX_CV_MB} MB.`;
+
+    return null;
+  }
+
+  // ============ MODALS ============
+  function openModal(id){ const m=$(id); if (m) m.classList.remove("hidden"); }
+  function closeModal(id){ const m=$(id); if (m) m.classList.add("hidden"); }
+
+  function bindModals(){
+    $("btnStart")?.addEventListener("click", () => {
+      setMsg("formMsg","");
+      if (localStorage.getItem(LOCK_KEY)){
+        setMsg("formMsg","Esta evaluación ya fue iniciada en este dispositivo.");
+        return;
+      }
+      openModal("modalInfo");
+    });
+
+    $("modalInfoClose")?.addEventListener("click", () => closeModal("modalInfo"));
+    $("btnAcceptStart")?.addEventListener("click", async () => {
+      closeModal("modalInfo");
+      await startEvaluation();
+    });
+
+    $("modalDoneClose")?.addEventListener("click", () => closeModal("modalDone"));
+    $("btnDoneOk")?.addEventListener("click", () => closeModal("modalDone"));
+
+    ["modalInfo","modalDone"].forEach((mid) => {
+      const m = $(mid);
+      if (!m) return;
+      m.addEventListener("click", (e) => { if (e.target === m) closeModal(mid); });
+    });
+  }
+
+  // ============ EVALUATION ============
+  let questions = [];
+  let answers = [];
+  let idx = 0;
+
+  let timerSeconds = 10 * 60;
+  let timerHandle = null;
+
+  function clearTimer(){ if (timerHandle) clearInterval(timerHandle); timerHandle=null; }
+
+  function setTimerUI(){
+    const mm = String(Math.floor(timerSeconds/60)).padStart(2,"0");
+    const ss = String(timerSeconds%60).padStart(2,"0");
+    $("timer").textContent = `${mm}:${ss}`;
+  }
+
+  function startTimer(){
+    clearTimer();
+    setTimerUI();
+    timerHandle = setInterval(() => {
+      timerSeconds -= 1;
+      setTimerUI();
+      if (timerSeconds <= 0){
+        clearTimer();
+        submitEvaluation(true).catch((e) => setMsg("uiMsg", e.message));
+      }
+    }, 1000);
+  }
+
+  function normalizeQuestions(json){
+    const q =
+      (Array.isArray(json?.questions) && json.questions) ||
+      (Array.isArray(json?.data?.questions) && json.data.questions) ||
+      (Array.isArray(json?.eval?.questions) && json.eval.questions) ||
+      [];
+    return q.map((x,i) => {
+      if (typeof x === "string") return { id:i+1, text:x };
+      return { id: x.id ?? i+1, text: x.text ?? x.question ?? "" };
+    }).filter((x) => (x.text||"").trim().length > 0);
+  }
+
+  function renderQuestion(){
+    const total = questions.length;
+    const q = questions[idx];
+
+    $("qCounter").textContent = `${idx+1}/${total}`;
+    $("qText").textContent = q.text;
+
+    const area = $("qAnswer");
+    area.value = answers[idx] || "";
+
+    const isLast = idx === total-1;
+    $("btnNext").style.display = isLast ? "none" : "";
+    $("btnSend").style.display = isLast ? "" : "none";
+  }
+
+  function bindExam(){
+    $("qAnswer")?.addEventListener("input", (e) => { answers[idx] = e.target.value; });
+
+    $("btnNext")?.addEventListener("click", () => {
+      setMsg("uiMsg","");
+      answers[idx] = $("qAnswer").value;
+
+      if (idx < questions.length-1){
+        idx += 1;
+        renderQuestion();
+      }
+    });
+
+    $("btnSend")?.addEventListener("click", () => submitEvaluation(false).catch((e) => setMsg("uiMsg", e.message)));
+
+    $("btnCancel")?.addEventListener("click", () => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setMsg("uiMsg","La evaluación ya inició. Completa y envía para finalizar.");
+    });
+  }
+
+  function lock(){ localStorage.setItem(LOCK_KEY, String(Date.now())); }
+
+  function buildPayloadBase(){
+    const cv = $("cvFile")?.files?.[0];
+    return {
+      nombre: getValue("nombre"),
+      apellido: getValue("apellido"),
+      cedula: getValue("cedula"),
+      correo: getValue("correo"),
+      celular: getValue("celular"),
+      github: getValue("github"),
+      linkedin: getValue("linkedin"),
+      universidad: getValue("universidad"),
+      carrera: getValue("carrera"),
+      semestre: getValue("semestre"),
+      position_id: getValue("cargo"),
+      cv_filename: cv?.name || "",
+    };
+  }
+
+  async function startEvaluation(){
+    const err = validateForm();
+    if (err){ setMsg("formMsg", err); return; }
+
+    lock();
+
+    hide($("indexCard"));
+    show($("examCard"));
+    setMsg("uiMsg","");
+
+    const positionId = getValue("cargo");
+
+    try{
+      const json = await apiGetJson(`${ENDPOINT_EVAL}?position_id=${encodeURIComponent(positionId)}`);
+      questions = normalizeQuestions(json);
+
+      if (!questions.length) throw new Error("No hay preguntas para este cargo.");
+
+      const minutes = Number(json.duration_min ?? json.data?.duration_min ?? json.eval?.duration_min ?? 10) || 10;
+      timerSeconds = minutes * 60;
+
+      answers = Array(questions.length).fill("");
+      idx = 0;
+
+      renderQuestion();
+      startTimer();
+    }catch(e){
+      console.error("startEvaluation error:", e);
+      setMsg("formMsg", `No se pudo cargar la evaluación: ${e.message}`);
+      clearTimer();
+      show($("indexCard"));
+      hide($("examCard"));
+    }
+  }
+
+  async function submitEvaluation(auto){
+    setMsg("uiMsg","");
+    answers[idx] = $("qAnswer").value;
+
+    const empty = answers.findIndex((x) => !String(x||"").trim());
+    if (!auto && empty >= 0){
+      idx = empty;
+      renderQuestion();
+      throw new Error("Debes responder todas las preguntas antes de enviar.");
+    }
+
+    const base = buildPayloadBase();
+    const cvFile = $("cvFile")?.files?.[0];
+    const cv_base64 = cvFile ? await fileToBase64(cvFile) : "";
+
+    const payload = {
+      ...base,
+      started_at: Number(localStorage.getItem(LOCK_KEY)) || Date.now(),
+      submitted_at: Date.now(),
+      auto_submit: !!auto,
+      preguntas: questions.map((q,i) => ({ id:q.id, pregunta:q.text, respuesta: answers[i] || "" })),
+      cv_base64,
+    };
+
+    $("btnSend").disabled = true;
+
+    try{
+      const res = await apiPostJson(ENDPOINT_SUBMIT, payload);
+      clearTimer();
+
+      $("doneMsg").textContent = res?.msg || "Evaluación enviada.";
+      openModal("modalDone");
+    }catch(e){
+      console.error("submitEvaluation error:", e);
+      $("btnSend").disabled = false;
+      throw e;
+    }
+  }
+
+  // ============ INIT ============
+  document.addEventListener("DOMContentLoaded", async () => {
+    bindCv();
+    bindModals();
+    bindExam();
+
+    hide($("examCard"));
+    show($("indexCard"));
+    setMsg("formMsg","");
+    setMsg("uiMsg","");
+    if ($("timer")) $("timer").textContent = "10:00";
+
+    await loadPositions();
   });
-});
+
+})();
