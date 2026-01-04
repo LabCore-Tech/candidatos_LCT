@@ -470,3 +470,23 @@ body{
 .policy-check a:hover{
   text-decoration: underline;
 }
+
+.card__head,
+.section__head,
+.form__head,
+.header__content,
+.hero__head{
+  text-align:center;
+}
+
+.policy a,
+.policy-check a {
+  color: #1d4ed8;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.policy a:hover,
+.policy-check a:hover {
+  color: #1e40af;
+}
