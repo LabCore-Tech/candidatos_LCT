@@ -59,11 +59,26 @@ body{
   object-fit: cover;
 }
 
+/* CONTENEDOR del texto + subtítulo */
 .brand__txt{
-  width:44px;height:44px;
-  border-radius: 14px;
-  object-fit: cover;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  line-height:1;
+  width:auto;
+  height:auto;
+  border-radius:0;
 }
+
+/* IMAGEN del texto (LabCoretxt.webp) */
+.brand__txt img{
+  height:26px;          /* ajusta si quieres 24/28 */
+  width:auto;
+  max-width:220px;      /* evita que se desborde */
+  object-fit:contain;
+  display:block;
+}
+
 
 .brand__name{
   font-weight: 900;
