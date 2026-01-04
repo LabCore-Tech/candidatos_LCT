@@ -128,12 +128,23 @@
           </datalist>
         </div>
 
-      <div class="policy">
-        <label class="chk">
+      <!-- Política de tratamiento -->
+      <div class="field">
+        <label>Política de tratamiento</label>
+
+        <label class="policy-check">
           <input id="acceptPolicy" type="checkbox" />
-          <span>Acepto la <a href="#" id="openPolicy">Política de tratamiento de datos</a>.</span>
+          <span>
+            Acepto la
+            <a href="politica-datos.html"
+              onclick="window.open('politica-datos.html','politica','width=980,height=720,scrollbars=yes,resizable=yes'); return false;"
+              style="color: var(--primary2); text-decoration:none;">
+              Política de tratamiento de datos.
+            </a>
+          </span>
         </label>
       </div>
+
 
       <div class="actions">
         <button id="btnStart" class="btn primary" type="button" disabled>Iniciar evaluación</button>
