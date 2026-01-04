@@ -59,6 +59,12 @@ body{
   object-fit: cover;
 }
 
+.brand__txt{
+  width:44px;height:44px;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
 .brand__name{
   font-weight: 900;
   font-size: 26px;
@@ -411,4 +417,41 @@ body{
   .formgrid{grid-template-columns: 1fr;}
   .title{font-size: 34px;}
   .btn.primary{min-width: 220px;}
+}
+
+/* Política: vuelve a verse como el resto del form (sin checkbox gigante) */
+.field-policy{
+  grid-column: 1 / -1;
+  margin-top: 8px;
+}
+
+.policy-check{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  user-select: none;
+}
+
+.policy-check input{
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary2);
+  flex: 0 0 auto;
+}
+
+.policy-check span{
+  font-size: 14px;
+  color: #111827;
+  line-height: 1.25;
+}
+
+.policy-check a{
+  color: var(--primary2);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.policy-check a:hover{
+  text-decoration: underline;
 }

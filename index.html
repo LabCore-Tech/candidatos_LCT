@@ -16,7 +16,7 @@
     <div class="brand">
       <img class="brand__logo" src="src/img/LabCore.webp" alt="LabCore" />
       <div class="brand__txt">
-        <div class="brand__name">LabCore</div>
+        <img class="brand__txt" src="src/img/LabCoretxt.webp" alt="LabCore" />
         <div class="brand__sub">Evaluación de ingreso</div>
       </div>
     </div>
@@ -129,16 +129,18 @@
         </div>
 
       <!-- Política de tratamiento -->
-      <div class="field">
+      <div class="field field-policy">
         <label>Política de tratamiento</label>
 
         <label class="policy-check">
           <input id="acceptPolicy" type="checkbox" />
           <span>
             Acepto la
-            <a href="politica-datos.html"
+            <a
+              href="politica-datos.html"
+              id="openPolicy"
               onclick="window.open('politica-datos.html','politica','width=980,height=720,scrollbars=yes,resizable=yes'); return false;"
-              style="color: var(--primary2); text-decoration:none;">
+            >
               Política de tratamiento de datos.
             </a>
           </span>
