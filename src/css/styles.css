@@ -72,7 +72,7 @@ body{
 
 /* IMAGEN del texto (LabCoretxt.webp) */
 .brand__txt img{
-  height:26px;          /* ajusta si quieres 24/28 */
+  height:30px;          /* ajusta si quieres 24/28 */
   width:auto;
   max-width:220px;      /* evita que se desborde */
   object-fit:contain;
