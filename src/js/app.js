@@ -80,13 +80,19 @@ window.PUBLIC_EVAL_API_KEY =
   // State
   // =============================
   const state = {
-    evalByPosition: new Map(), // positionId -> { ok, questions, duration_minutes }
+    evalByPosition: new Map(),
     questions: [],
     answers: [],
     durationSeconds: 10 * 60,
     remaining: 10 * 60,
     timerHandle: null,
     examStarted: false,
+
+    // 👇 AGREGA ESTO
+    incidents: {
+      total: 0,
+      byQuestion: {}
+    }
   };
 
   let currentIndex = 0;
@@ -94,6 +100,31 @@ window.PUBLIC_EVAL_API_KEY =
   // =============================
   // Utils UI
   // =============================
+
+  function ensureIncidentSlot(index) {
+    if (!state.incidents.byQuestion[index]) {
+      state.incidents.byQuestion[index] = {
+        copy: 0,
+        paste: 0,
+        cut: 0,
+        blur: 0,
+        screenshot: 0
+      };
+    }
+  }
+
+  function registerIncident(type) {
+    state.incidents.total++;
+    ensureIncidentSlot(currentIndex);
+
+    if (state.incidents.byQuestion[currentIndex][type] !== undefined) {
+      state.incidents.byQuestion[currentIndex][type]++;
+    }
+
+    const el = document.getElementById("incidents");
+    if (el) el.textContent = state.incidents.total;
+  }
+
   function setMsg(el, msg) {
     if (!el) return;
     el.textContent = msg || "";
@@ -462,6 +493,11 @@ window.PUBLIC_EVAL_API_KEY =
     const qTextEl2 = questionHost.querySelector("#qText");
     const qAnswerEl2 = questionHost.querySelector("#qAnswer");
 
+    qAnswerEl2.addEventListener("paste", (e) => {
+      e.preventDefault();
+      registerIncident("paste");
+    });
+
     const moduleName = q.moduleName || q.module || "";
     const prompt = q.prompt || q.text || q.question || "";
 
@@ -576,6 +612,12 @@ window.PUBLIC_EVAL_API_KEY =
           mime: file.type || "application/pdf",
           base64: cvB64,
         },
+
+        incidents: {
+          total: state.incidents.total,
+          detail: state.incidents.byQuestion
+        },
+
       };
 
       await postJson(ENDPOINT_SUBMIT, payload);
@@ -695,44 +737,71 @@ window.PUBLIC_EVAL_API_KEY =
     await finishExam();
   });
 
+  ["copy", "cut", "paste"].forEach(evt => {
+    document.addEventListener(evt, (e) => {
+      if (!state.examStarted) return;
+      e.preventDefault();
+      registerIncident(evt);
+    });
+  });
+
+  window.addEventListener("blur", () => {
+    if (!state.examStarted) return;
+    registerIncident("blur");
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (!state.examStarted) return;
+    if (document.visibilityState === "hidden") {
+      registerIncident("blur");
+    }
+  });
+
   // =============================
   // Init
   // =============================
-  document.addEventListener("DOMContentLoaded", async () => {
-    hide(examCard);
-    show(form);
+    document.addEventListener("DOMContentLoaded", async () => {
+      // Estado inicial
+      hide(examCard);
+      show(form);
 
-    show(btnStart);
-    btnStart.disabled = true;
+      show(btnStart);
+      btnStart.disabled = true;
 
-    updateCvPickerLabel();
+      updateCvPickerLabel();
 
-    // ✅ WAKE Render (despierta el servicio)
-    setMsg(uiMsg, "Activando servicio...");
-    await wakeRender();
-
-    // ✅ Cargar cargos con reintentos (por si Render aún está levantando)
-    try {
-      await withRetry(async () => {
-        await loadPositions();
-        // valida que ya haya opciones reales
-        const optionsCount = roleSelect?.querySelectorAll("option")?.length || 0;
-        if (optionsCount <= 1) throw new Error("Cargos aún no disponibles");
-      }, 7);
-      setMsg(uiMsg, "");
-    } catch (e) {
-      setMsg(uiMsg, "");
-      setMsg(formError, "El servicio está iniciando. Espera unos segundos y recarga la página.");
-    }
-
-    refreshStartButton();
-  });
-
-  document.addEventListener("visibilitychange", async () => {
-    if (document.visibilityState === "visible") {
+      // ✅ WAKE Render (despierta el servicio)
       await wakeRender();
-    }
-  });
+
+      // ✅ Cargar cargos con reintentos (por si Render aún está levantando)
+      try {
+        await withRetry(async () => {
+          await loadPositions();
+
+          // valida que ya haya opciones reales
+          const optionsCount =
+            roleSelect?.querySelectorAll("option")?.length || 0;
+
+          if (optionsCount <= 1) {
+            throw new Error("Cargos aún no disponibles");
+          }
+        }, 7);
+      } catch (e) {
+        setMsg(
+          formError,
+          "El servicio está iniciando. Espera unos segundos y recarga la página."
+        );
+      }
+
+      refreshStartButton();
+    });
+
+    // ✅ Cada vez que el usuario vuelve a la pestaña → despierta Render
+    document.addEventListener("visibilitychange", async () => {
+      if (document.visibilityState === "visible") {
+        await wakeRender();
+      }
+    });
 
 
 })();
