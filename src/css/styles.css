@@ -490,3 +490,44 @@ body{
 .policy-check a:hover {
   color: #1e40af;
 }
+
+/* === Step control === */
+.is-hidden{ display:none !important; }
+
+/* Exam layout: keep everything in one screen when possible */
+#examCard{
+  max-height: calc(100vh - 140px);
+  display:flex;
+  flex-direction:column;
+}
+#examCard .exam-body{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  overflow:hidden;
+}
+#qText{
+  overflow:auto;
+  max-height: 34vh;
+}
+#qAnswer{
+  width:100%;
+  min-height: 140px;
+  max-height: 28vh;
+  resize: vertical;
+}
+.exam-actions{
+  display:flex;
+  justify-content:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.exam-actions .btn{ min-width: 180px; }
+
+@media (max-width: 680px){
+  #examCard{ max-height: none; }
+  #qText{ max-height: none; }
+  #qAnswer{ max-height: none; min-height: 160px; }
+  .exam-actions .btn{ min-width: 140px; width: 100%; }
+}
