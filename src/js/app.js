@@ -240,10 +240,16 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   function refreshStartButton() {
-    if (!btnStart) return;
-    show(btnStart); // siempre visible
-    btnStart.disabled = !isFormOk();
-  }
+     if (!btnStart) return;
+   
+     // ✅ SIEMPRE visible y SIEMPRE habilitado
+     show(btnStart);
+     btnStart.disabled = false;
+   
+     // Si quieres limpiar mensajes cuando ya está ok
+     if (isFormOk()) setMsg(formError, "");
+   }
+
 
   // =============================
   // Load positions
@@ -531,11 +537,17 @@ window.PUBLIC_EVAL_API_KEY =
   });
 
   btnStart?.addEventListener("click", (e) => {
-    e.preventDefault();
-    refreshStartButton();
-    if (btnStart.disabled) return;
-    openModalInfo();
-  });
+     e.preventDefault();
+   
+     // ✅ Aquí validas (en vez de deshabilitar el botón)
+     if (!isFormOk()) {
+       setMsg(formError, "Completa todos los campos obligatorios y adjunta tu hoja de vida (PDF).");
+       return;
+     }
+   
+     // ✅ Si todo está OK, recién ahí abre la popup
+     openModalInfo();
+   });
 
   btnContinue?.addEventListener("click", () => {
     closeModalInfo();
