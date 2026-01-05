@@ -94,8 +94,18 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
     el.style.display = msg ? "block" : "none";
   }
 
-  function show(el) { el?.classList.remove("is-hidden"); }
-  function hide(el) { el?.classList.add("is-hidden"); }
+  function show(el) {
+    if (!el) return;
+    el.classList.remove("is-hidden");
+    el.classList.remove("hidden");
+  }
+
+  function hide(el) {
+    if (!el) return;
+    el.classList.add("is-hidden");
+    el.classList.add("hidden");
+  }
+
 
   function headers() {
     const h = { Accept: "application/json" };
