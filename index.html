@@ -2,233 +2,186 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>LabCore | Evaluación de ingreso</title>
 
-  <!-- CSS: intenta primero /src/css, si no existe usa el del mismo nivel -->
   <link rel="stylesheet" href="src/css/styles.css" />
-  <link rel="stylesheet" href="styles.css" />
-
-  <link rel="icon" href="src/img/LabCore.webp" type="image/webp" />
 </head>
 
 <body>
-  <div class="bg"></div>
-
-  <header class="topbar">
-    <div class="brand">
-      <img class="brand__logo" src="src/img/LabCore.webp" alt="LabCore"
-           onerror="this.onerror=null; this.src='LabCore.webp';" />
-      <div class="brand__txt">
-        <img class="brand__txt" src="src/img/LabCoretxt.webp" alt="LabCore"
-             onerror="this.onerror=null; this.src='LabCoretxt.webp';" />
-        <div class="brand__sub">Evaluación de ingreso</div>
-      </div>
-    </div>
-  </header>
-
   <main class="wrap">
-    <!-- CARD: FORM -->
+
+    <!-- Header -->
+    <section class="top">
+      <div class="brand">
+        <img class="brand__logo" src="src/img/logo.png" alt="LabCore" />
+        <div class="brand__txt">
+          <div class="brand__name">LabCore</div>
+          <div class="brand__sub">Evaluación de ingreso</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 1: Form -->
     <section id="candidateForm" class="card">
       <h1 class="title">Datos del postulante</h1>
-      <p class="subtitle">
-        <span class="muted">Los campos con <b>*</b> son obligatorios.</span>
-      </p>
+      <p class="subtitle">Los campos con <span class="req">*</span> son obligatorios.</p>
 
-      <div id="formError" class="alert alert--danger hidden" role="alert"></div>
+      <form class="grid" autocomplete="off">
 
-      <div class="formgrid">
         <div class="field">
           <label for="firstName">Nombre <span class="req">*</span></label>
-          <input id="firstName" type="text" placeholder="Escribe tu nombre" autocomplete="given-name" />
+          <input id="firstName" class="input" type="text" placeholder="Escribe tu nombre" />
         </div>
 
         <div class="field">
           <label for="lastName">Apellido <span class="req">*</span></label>
-          <input id="lastName" type="text" placeholder="Escribe tu apellido" autocomplete="family-name" />
+          <input id="lastName" class="input" type="text" placeholder="Escribe tu apellido" />
         </div>
 
         <div class="field">
           <label for="cedula">Cédula <span class="req">*</span></label>
-          <input id="cedula" type="text" inputmode="numeric" placeholder="Solo números" />
+          <input id="cedula" class="input" type="text" inputmode="numeric" placeholder="Solo números" />
         </div>
 
         <div class="field">
           <label for="role">Cargo a concursar <span class="req">*</span></label>
-          <select id="role">
-            <option value="">Cargando...</option>
+          <select id="role" class="input">
+            <option value="" selected>Cargando...</option>
           </select>
         </div>
 
         <div class="field">
           <label for="email">Correo <span class="req">*</span></label>
-          <div class="input-icon">
-            <input id="email" type="email" placeholder="tucorreo@dominio.com" autocomplete="email" />
-            <span class="icon-mail" aria-hidden="true"></span>
+          <div class="inputWrap">
+            <input id="email" class="input" type="email" placeholder="tucorreo@dominio.com" />
+            <span class="inputIcon" aria-hidden="true"></span>
           </div>
         </div>
 
         <div class="field">
           <label for="phone">Celular <span class="req">*</span></label>
-          <input id="phone" type="tel" placeholder="Ej: 3001234567" autocomplete="tel" />
+          <input id="phone" class="input" type="text" inputmode="tel" placeholder="Ej: 3001234567" />
         </div>
 
         <div class="field">
           <label for="github">GitHub <span class="req">*</span></label>
-          <input id="github" type="url" placeholder="https://github.com/tuusuario" />
+          <input id="github" class="input" type="url" placeholder="https://github.com/tuusuario" />
         </div>
 
-        <!-- CV (sin botón nativo) -->
         <div class="field">
-          <label>Hoja de vida<span class="req">*</span></label>
+          <label for="cvFile">Hoja de vida <span class="req">*</span></label>
 
-          <input id="cvFile" class="file-hidden" type="file" accept="application/pdf" />
-          <button id="cvPicker" class="file-like" type="button">
+          <!-- input real -->
+          <input id="cvFile" type="file" accept="application/pdf" class="hidden" />
+
+          <!-- picker visual -->
+          <div id="cvPicker" class="filePicker" tabindex="0" role="button" aria-label="Adjuntar hoja de vida PDF">
             Haz clic para adjuntar tu PDF
-          </button>
+          </div>
 
-          <small class="help">Máx. 8 MB — Solo PDF</small>
+          <div class="help">Máx. 8 MB — Solo PDF</div>
         </div>
 
         <div class="field">
           <label for="linkedin">LinkedIn</label>
-          <input id="linkedin" type="url" placeholder="https://www.linkedin.com/in/tuperfil" />
+          <input id="linkedin" class="input" type="url" placeholder="https://www.linkedin.com/in/tuperfil" />
         </div>
 
         <div class="field">
           <label for="university">Universidad <span class="req">*</span></label>
-          <input id="university" type="text" placeholder="Escribe tu universidad" />
+          <input id="university" class="input" type="text" placeholder="Escribe tu universidad" />
         </div>
 
         <div class="field">
           <label for="career">Carrera <span class="req">*</span></label>
-
-          <input id="career" name="career" list="careerList"
-            placeholder="Selecciona... o escribe"
-            autocomplete="off" required />
-
-          <datalist id="careerList">
-            <option value="Ingeniería de Sistemas"></option>
-            <option value="Tecnología en Sistemas"></option>
-            <option value="Desarrollo de Software"></option>
-            <option value="Ingeniería de Software"></option>
-            <option value="Otra"></option>
-          </datalist>
+          <input id="career" class="input" list="careerList" placeholder="Selecciona... o escribe" />
+          <datalist id="careerList"></datalist>
         </div>
 
         <div class="field">
           <label for="semester">Semestre <span class="req">*</span></label>
-
-          <input id="semester" name="semester" list="semesterList"
-            placeholder="Selecciona... o escribe"
-            inputmode="numeric"
-            autocomplete="off" required />
-
-          <datalist id="semesterList">
-            <option value="1"></option><option value="2"></option><option value="3"></option><option value="4"></option><option value="5"></option>
-            <option value="6"></option><option value="7"></option><option value="8"></option><option value="9"></option><option value="10"></option>
-            <option value="Suspendido"></option><option value="Terminado"></option><option value="Graduado"></option>
-          </datalist>
+          <input id="semester" class="input" list="semesterList" placeholder="Selecciona... o escribe" />
+          <datalist id="semesterList"></datalist>
         </div>
 
-        <!-- Política de tratamiento -->
-        <div class="field field-policy">
-          <label class="policy-check">
+        <div class="field field--full">
+          <label class="check">
             <input id="acceptPolicy" type="checkbox" />
-            <span>
-              Acepto la
-              <a
-                href="politica-datos.html"
-                id="openPolicy"
-                onclick="window.open('politica-datos.html','politica','width=980,height=720,scrollbars=yes,resizable=yes'); return false;"
-              >
-                Política de tratamiento de datos.
-              </a>
-            </span>
+            <span>Acepto la <a href="#" target="_blank" rel="noopener">Política de tratamiento de datos</a>.</span>
           </label>
+        </div>
 
-          <div class="actions">
-            <button id="btnStart" class="btn primary" disabled>
-              Iniciar prueba
-            </button>
+        <!-- ✅ NUEVO: info de servicio (Render wake) -->
+        <div id="serviceInfo" class="alert alert--info hidden" role="status"></div>
+
+        <div id="formError" class="alert alert--danger hidden" role="alert"></div>
+
+        <div class="actions">
+          <button id="btnStart" class="btn primary" type="button" disabled>Iniciar prueba</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Step 2: Exam -->
+    <section id="examCard" class="card is-hidden">
+      <div class="examTop">
+        <h2 class="title">Evaluación</h2>
+
+        <div id="timerBox" class="timerBox hidden" aria-live="polite">
+          <div class="timer">
+            <div class="timer__label">Tiempo</div>
+            <div id="timer" class="timer__value">10:00</div>
+            <div id="timeHint" class="timeHint hidden" aria-live="polite"></div>
           </div>
         </div>
       </div>
-    </section>
 
-    <!-- CARD: EXAM -->
-    <section id="examCard" class="card hidden">
-      <div class="examTop">
-        <h2 class="title-sm">Evaluación</h2>
-
-        <div id="timerBox" class="timer hidden" aria-live="polite">
-          <div class="timer__label" id="timerLabel">Tiempo</div>
-          <div id="timer" class="timer__value">10:00</div>
-          <div id="timerHint" class="timer__hint hidden">Quedan 10:00</div>
-        </div>
-      </div>
-
-      <!-- Incidencias: NO se muestran al candidato (se guardan en silencio) -->
-      <div class="examMeta hidden" aria-hidden="true">
-        <div>Incidentes: <b id="incidents">0</b></div>
-      </div>
+      <!-- ✅ Se mantiene para backend, pero NO visible al candidato -->
+      <div class="examMeta hidden" aria-hidden="true">Incidentes: <b id="incidents">0</b></div>
 
       <div id="examError" class="alert alert--danger hidden" role="alert"></div>
 
-      <div id="questionHost"></div>
+      <div id="questionHost" class="questionHost"></div>
 
       <div class="examActions examActions--center">
-        <button id="btnNext" class="btn primary btn-next" type="button" aria-label="Siguiente">
-          <span class="btn-icon" aria-hidden="true">›</span>
-        </button>
-
+        <button id="btnPrev" class="btn btn--ghost hidden" type="button">‹</button>
+        <button id="btnNext" class="btn btn--ghost" type="button">›</button>
         <button id="btnSubmit" class="btn primary hidden" type="button">Enviar evaluación</button>
       </div>
     </section>
+
   </main>
 
-  <!-- MODAL: Antes de iniciar (sin Cancelar) -->
+  <!-- Modal info -->
   <div id="modalInfo" class="modal hidden" aria-hidden="true">
     <div class="modal__backdrop" data-close="1"></div>
-    <div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="miTitle">
-      <button class="modal__x" type="button" data-close="1" aria-label="Cerrar">×</button>
-      <h3 id="miTitle" class="modal__title">Antes de iniciar</h3>
-      <p class="modal__text">
-        La evaluación dura 10 minutos. Una vez inicie, no cierres la pestaña. Gracias. Tu información quedará registrada.
-      </p>
+    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="miTitle">
+      <h3 id="miTitle">Antes de iniciar</h3>
+      <ul class="modal__list">
+        <li>La prueba inicia al continuar.</li>
+        <li>No se permite copiar/pegar.</li>
+        <li>El tiempo es limitado.</li>
+      </ul>
       <div class="modal__actions">
+        <button class="btn btn--ghost" type="button" data-close="1">Cancelar</button>
         <button id="btnContinue" class="btn primary" type="button">Continuar</button>
       </div>
     </div>
   </div>
 
-  <!-- MODAL: Resultado -->
+  <!-- Modal result -->
   <div id="modalResult" class="modal hidden" aria-hidden="true">
     <div class="modal__backdrop" data-close="1"></div>
-    <div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="mrTitle">
-      <button class="modal__x" type="button" data-close="1" aria-label="Cerrar">×</button>
-      <h3 id="mrTitle" class="modal__title">Listo</h3>
-      <p id="mrMsg" class="modal__text">Evaluación enviada.</p>
+    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="mrTitle">
+      <h3 id="mrTitle">Resultado</h3>
+      <p id="mrMsg"></p>
       <div class="modal__actions">
-        <button class="btn primary" type="button" data-close="1">OK</button>
+        <button class="btn primary" type="button" data-close="1">Cerrar</button>
       </div>
     </div>
   </div>
 
-  <!-- JS: intenta primero /src/js, si no existe usa el del mismo nivel -->
-  <script>
-    (function () {
-      const paths = ["src/js/app.js", "app.js"];
-      function load(i) {
-        if (i >= paths.length) return;
-        const s = document.createElement("script");
-        s.src = paths[i];
-        s.defer = true;
-        s.onerror = function () { load(i + 1); };
-        document.body.appendChild(s);
-      }
-      load(0);
-    })();
-  </script>
+  <script src="src/js/app.js"></script>
 </body>
 </html>
