@@ -460,17 +460,33 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
     }
   }
 
-  function openModalInfo() { modalInfo?.classList.add("open"); }
-  function closeModalInfo() { modalInfo?.classList.remove("open"); }
+  function openModalInfo() {
+    if (!modalInfo) return;
+    modalInfo.classList.remove("hidden");
+    modalInfo.classList.remove("is-hidden");
+    modalInfo.classList.add("open");
+  }
+
+  function closeModalInfo() {
+    if (!modalInfo) return;
+    modalInfo.classList.remove("open");
+    modalInfo.classList.add("hidden");
+  }
 
   function openModalDone(title) {
-    if (modalDone) {
-      const t = $("modalDoneTitle");
-      if (t) t.textContent = title || "Listo";
-      modalDone.classList.add("open");
-    }
+    if (!modalDone) return;
+    const t = $("modalDoneTitle");
+    if (t) t.textContent = title || "Listo";
+    modalDone.classList.remove("hidden");
+    modalDone.classList.remove("is-hidden");
+    modalDone.classList.add("open");
   }
-  function closeModalDone() { modalDone?.classList.remove("open"); }
+
+  function closeModalDone() {
+    if (!modalDone) return;
+    modalDone.classList.remove("open");
+    modalDone.classList.add("hidden");
+  }
 
   function beginExam() {
     const pid = roleSelect.value.trim();
@@ -500,19 +516,6 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
   // Events
   // =============================
   const revalidate = () => refreshStartButton();
-
-  // ===== CV picker (click en el campo abre selector y muestra nombre) =====
-  function updateCvPickerLabel() {
-    if (!cvPicker) return;
-    const f = cvFile?.files?.[0];
-    const label = f ? f.name : "Haz clic para adjuntar tu PDF";
-    cvPicker.textContent = label;
-  }
-
-  cvFile?.addEventListener("change", () => {
-    updateCvPickerLabel();
-    refreshStartButton();
-  });
 
   [firstName, lastName, cedula, university, career, semester]
     .forEach((el) => el?.addEventListener("input", revalidate));
@@ -567,7 +570,10 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
     beginExam();
   });
 
-  modalInfoClose?.addEventListener("click", closeModalInfo);
+  // Cerrar modal info por backdrop o X (ambos tienen data-close="1" en el HTML)
+  modalInfo?.querySelectorAll('[data-close="1"]').forEach((el) => {
+    el.addEventListener("click", closeModalInfo);
+  });
 
 
   btnNext?.addEventListener("click", (e) => {
