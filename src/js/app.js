@@ -5,6 +5,8 @@
    - Step 1: Datos del postulante
    - Step 2: Solo pregunta + textarea de respuesta (responsive)
 */
+// 🔐 API KEY pública para evaluación
+window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98";
 
 (() => {
   // =============================
