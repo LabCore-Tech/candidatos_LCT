@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>LabCore | Evaluación de ingreso</title>
 
+  <!-- CSS: intenta primero /src/css, si no existe usa el del mismo nivel -->
   <link rel="stylesheet" href="src/css/styles.css" />
+  <link rel="stylesheet" href="styles.css" />
+
   <link rel="icon" href="src/img/LabCore.webp" type="image/webp" />
 </head>
 
@@ -14,9 +17,11 @@
 
   <header class="topbar">
     <div class="brand">
-      <img class="brand__logo" src="src/img/LabCore.webp" alt="LabCore" />
+      <img class="brand__logo" src="src/img/LabCore.webp" alt="LabCore"
+           onerror="this.onerror=null; this.src='LabCore.webp';" />
       <div class="brand__txt">
-        <img class="brand__txt" src="src/img/LabCoretxt.webp" alt="LabCore" />
+        <img class="brand__txt" src="src/img/LabCoretxt.webp" alt="LabCore"
+             onerror="this.onerror=null; this.src='LabCoretxt.webp';" />
         <div class="brand__sub">Evaluación de ingreso</div>
       </div>
     </div>
@@ -80,7 +85,6 @@
           <input id="cvFile" class="file-hidden" type="file" accept="application/pdf" />
           <button id="cvPicker" class="file-like" type="button">
             Haz clic para adjuntar tu PDF
-            <!-- <span class="pill">PDF</span>-->
           </button>
 
           <small class="help">Máx. 8 MB — Solo PDF</small>
@@ -104,11 +108,11 @@
             autocomplete="off" required />
 
           <datalist id="careerList">
-          <option value="Ingeniería de Sistemas"></option>
-          <option value="Tecnología en Sistemas"></option>
-          <option value="Desarrollo de Software"></option>
-          <option value="Ingeniería de Software"></option>
-          <option value="Otra"></option>
+            <option value="Ingeniería de Sistemas"></option>
+            <option value="Tecnología en Sistemas"></option>
+            <option value="Desarrollo de Software"></option>
+            <option value="Ingeniería de Software"></option>
+            <option value="Otra"></option>
           </datalist>
         </div>
 
@@ -121,33 +125,33 @@
             autocomplete="off" required />
 
           <datalist id="semesterList">
-          <option value="1"></option><option value="2"></option><option value="3"></option><option value="4"></option><option value="5"></option>
-          <option value="6"></option><option value="7"></option><option value="8"></option><option value="9"></option><option value="10"></option>
-          <option value="Suspendido"></option><option value="Terminado"></option><option value="Graduado"></option>
+            <option value="1"></option><option value="2"></option><option value="3"></option><option value="4"></option><option value="5"></option>
+            <option value="6"></option><option value="7"></option><option value="8"></option><option value="9"></option><option value="10"></option>
+            <option value="Suspendido"></option><option value="Terminado"></option><option value="Graduado"></option>
           </datalist>
         </div>
 
-      <!-- Política de tratamiento -->
-      <div class="field field-policy">
-        <label class="policy-check">
-          <input id="acceptPolicy" type="checkbox" />
-          <span>
-            Acepto la
-            <a
-              href="politica-datos.html"
-              id="openPolicy"
-              onclick="window.open('politica-datos.html','politica','width=980,height=720,scrollbars=yes,resizable=yes'); return false;"
-            >
-              Política de tratamiento de datos.
-            </a>
-          </span>
-        </label>
+        <!-- Política de tratamiento -->
+        <div class="field field-policy">
+          <label class="policy-check">
+            <input id="acceptPolicy" type="checkbox" />
+            <span>
+              Acepto la
+              <a
+                href="politica-datos.html"
+                id="openPolicy"
+                onclick="window.open('politica-datos.html','politica','width=980,height=720,scrollbars=yes,resizable=yes'); return false;"
+              >
+                Política de tratamiento de datos.
+              </a>
+            </span>
+          </label>
 
-        <div class="actions">
-          <button id="btnStart" class="btn primary" disabled>
-            Iniciar prueba
-          </button>
-
+          <div class="actions">
+            <button id="btnStart" class="btn primary" disabled>
+              Iniciar prueba
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -157,13 +161,15 @@
       <div class="examTop">
         <h2 class="title-sm">Evaluación</h2>
 
-        <div id="timerBox" class="timer hidden">
-          <div class="timer__label">Tiempo</div>
+        <div id="timerBox" class="timer hidden" aria-live="polite">
+          <div class="timer__label" id="timerLabel">Tiempo</div>
           <div id="timer" class="timer__value">10:00</div>
+          <div id="timerHint" class="timer__hint hidden">Quedan 10:00</div>
         </div>
       </div>
 
-      <div class="examMeta">
+      <!-- Incidencias: NO se muestran al candidato (se guardan en silencio) -->
+      <div class="examMeta hidden" aria-hidden="true">
         <div>Incidentes: <b id="incidents">0</b></div>
       </div>
 
@@ -171,13 +177,12 @@
 
       <div id="questionHost"></div>
 
-      <div class="examActions">
-        <!--<button id="btnPrev" class="btn ghost" type="button">Anterior</button>-->
-        <button id="btnNext" class="btn primary btn-next" type="button">
-          <span class="btn-icon">›</span>
+      <div class="examActions examActions--center">
+        <button id="btnNext" class="btn primary btn-next" type="button" aria-label="Siguiente">
+          <span class="btn-icon" aria-hidden="true">›</span>
         </button>
 
-        <button id="btnSubmit" class="btn primary" type="button">Enviar evaluación</button>
+        <button id="btnSubmit" class="btn primary hidden" type="button">Enviar evaluación</button>
       </div>
     </section>
   </main>
@@ -210,6 +215,20 @@
     </div>
   </div>
 
-  <script src="src/js/app.js"></script>
+  <!-- JS: intenta primero /src/js, si no existe usa el del mismo nivel -->
+  <script>
+    (function () {
+      const paths = ["src/js/app.js", "app.js"];
+      function load(i) {
+        if (i >= paths.length) return;
+        const s = document.createElement("script");
+        s.src = paths[i];
+        s.defer = true;
+        s.onerror = function () { load(i + 1); };
+        document.body.appendChild(s);
+      }
+      load(0);
+    })();
+  </script>
 </body>
 </html>

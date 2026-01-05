@@ -61,10 +61,11 @@ window.PUBLIC_EVAL_API_KEY =
   const examCard = $("examCard");
   const timerBox = $("timerBox");
   const timerEl = $("timer");
+  const timerLabel = $("timerLabel");
+  const timerHint = $("timerHint");
   const examError = $("examError");
 
   const questionHost = $("questionHost");
-  const btnPrev = $("btnPrev");
   const btnNext = $("btnNext");
   const btnSubmit = $("btnSubmit");
 
@@ -72,7 +73,7 @@ window.PUBLIC_EVAL_API_KEY =
   const modalInfo = $("modalInfo");
   const btnContinue = $("btnContinue");
 
-  // Modal resultado (tu HTML se llama modalResult)
+  // Modal resultado
   const modalResult = $("modalResult");
   const mrMsg = $("mrMsg");
 
@@ -80,19 +81,21 @@ window.PUBLIC_EVAL_API_KEY =
   // State
   // =============================
   const state = {
-    evalByPosition: new Map(),
+    evalByPosition: new Map(), // positionId -> { ok, questions, duration_minutes }
     questions: [],
     answers: [],
     durationSeconds: 10 * 60,
     remaining: 10 * 60,
     timerHandle: null,
     examStarted: false,
+    warning3mFired: false,
+    warning1mFired: false,
 
-    // 👇 AGREGA ESTO
+    // Incidencias (NO se muestran)
     incidents: {
       total: 0,
-      byQuestion: {}
-    }
+      byQuestion: {}, // index -> {copy,paste,cut,blur,screenshot}
+    },
   };
 
   let currentIndex = 0;
@@ -100,31 +103,6 @@ window.PUBLIC_EVAL_API_KEY =
   // =============================
   // Utils UI
   // =============================
-
-  function ensureIncidentSlot(index) {
-    if (!state.incidents.byQuestion[index]) {
-      state.incidents.byQuestion[index] = {
-        copy: 0,
-        paste: 0,
-        cut: 0,
-        blur: 0,
-        screenshot: 0
-      };
-    }
-  }
-
-  function registerIncident(type) {
-    state.incidents.total++;
-    ensureIncidentSlot(currentIndex);
-
-    if (state.incidents.byQuestion[currentIndex][type] !== undefined) {
-      state.incidents.byQuestion[currentIndex][type]++;
-    }
-
-    const el = document.getElementById("incidents");
-    if (el) el.textContent = state.incidents.total;
-  }
-
   function setMsg(el, msg) {
     if (!el) return;
     el.textContent = msg || "";
@@ -145,6 +123,35 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   // =============================
+  // Incidents (silent)
+  // =============================
+  function ensureIncidentSlot(index) {
+    const k = String(index);
+    if (!state.incidents.byQuestion[k]) {
+      state.incidents.byQuestion[k] = {
+        copy: 0,
+        paste: 0,
+        cut: 0,
+        blur: 0,
+        screenshot: 0,
+      };
+    }
+  }
+
+  function registerIncident(type) {
+    if (!state.examStarted) return;
+    state.incidents.total++;
+    ensureIncidentSlot(currentIndex);
+
+    const slot = state.incidents.byQuestion[String(currentIndex)];
+    if (slot && slot[type] !== undefined) slot[type]++;
+
+    // Si existe #incidents en el HTML lo actualiza, pero normalmente estará oculto
+    const el = document.getElementById("incidents");
+    if (el) el.textContent = String(state.incidents.total);
+  }
+
+  // =============================
   // HTTP
   // =============================
   function headers() {
@@ -153,19 +160,19 @@ window.PUBLIC_EVAL_API_KEY =
     return h;
   }
 
-    // =============================
-  // Render WAKE (evita "cargos no cargan" cuando está dormido)
+  // =============================
+  // Render WAKE (evita "Cargando..." eterno cuando Render está dormido)
   // =============================
   async function wakeRender() {
-    // endpoint liviano: positions (si está dormido, esto lo despierta)
     try {
       await fetch(ENDPOINT_POSITIONS, {
         method: "GET",
         headers: headers(),
         cache: "no-store",
+        keepalive: true,
       });
     } catch (_) {
-      // no hacemos nada: el objetivo es "tocar" el servicio
+      // objetivo: "tocar" el servicio, no mostrar error
     }
   }
 
@@ -173,25 +180,22 @@ window.PUBLIC_EVAL_API_KEY =
     return new Promise((r) => setTimeout(r, ms));
   }
 
-  // Reintenta una función async varias veces con backoff
-  async function withRetry(fn, tries = 6) {
+  async function withRetry(fn, tries = 7) {
     let lastErr = null;
     for (let i = 0; i < tries; i++) {
       try {
         return await fn();
       } catch (e) {
         lastErr = e;
-        // backoff: 0.5s, 1s, 2s, 4s, 6s, 8s...
-        const wait = i === 0 ? 500 : Math.min(8000, 1000 * Math.pow(2, i - 1));
+        const wait = i === 0 ? 600 : Math.min(8000, 900 * Math.pow(2, i - 1));
         await sleep(wait);
       }
     }
     throw lastErr || new Error("No se pudo completar la operación.");
   }
 
-
   async function fetchJson(url) {
-    const res = await fetch(url, { method: "GET", headers: headers() });
+    const res = await fetch(url, { method: "GET", headers: headers(), cache: "no-store" });
     const ct = (res.headers.get("content-type") || "").toLowerCase();
 
     if (!ct.includes("application/json")) {
@@ -233,12 +237,7 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   function normalizeEvalResponse(data) {
-    // Soporta:
     // A) { ok:true, questions:[...] }
-    // B) { ok:true, eval:{questions:[...]} }
-    // C) { ok:true, modules:[{id,name,questions:[{id,text}]}...] }  ✅ TU CASO
-
-    // 1) caso directo
     if (data?.ok === true && Array.isArray(data.questions)) {
       return {
         ok: true,
@@ -248,7 +247,7 @@ window.PUBLIC_EVAL_API_KEY =
       };
     }
 
-    // 2) caso eval.questions
+    // B) { ok:true, eval:{questions:[...]} }
     if (data?.eval && Array.isArray(data.eval.questions)) {
       return {
         ok: true,
@@ -258,7 +257,7 @@ window.PUBLIC_EVAL_API_KEY =
       };
     }
 
-    // 3) ✅ TU CASO: modules[].questions[]  -> aplanar a [{id,moduleId,moduleName,prompt}]
+    // C) { ok:true, modules:[{id,name,questions:[{id,text}]}...] }
     if (data?.ok === true && Array.isArray(data.modules)) {
       const flat = [];
       for (const m of data.modules) {
@@ -274,7 +273,6 @@ window.PUBLIC_EVAL_API_KEY =
           });
         }
       }
-
       return {
         ok: true,
         questions: flat,
@@ -286,7 +284,6 @@ window.PUBLIC_EVAL_API_KEY =
     return { ok: false, questions: [], duration_minutes: 10, raw: data };
   }
 
-
   // =============================
   // CV picker
   // =============================
@@ -294,6 +291,7 @@ window.PUBLIC_EVAL_API_KEY =
     if (!cvPicker) return;
     const f = cvFile?.files?.[0];
     cvPicker.textContent = f ? f.name : "Haz clic para adjuntar tu PDF";
+    cvPicker.classList.toggle("has-file", !!f);
   }
 
   function fileToBase64NoPrefix(file) {
@@ -310,12 +308,11 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   // =============================
-  // Validation (NO se quita)
+  // Validation
   // =============================
   function hasPdfSelected() {
     const f = cvFile?.files?.[0];
     if (!f) return false;
-    // Aceptar por mime o por extensión (por si navegador no pone mime)
     const mime = String(f.type || "").toLowerCase();
     const name = String(f.name || "").toLowerCase();
     if (mime === "application/pdf") return true;
@@ -335,73 +332,65 @@ window.PUBLIC_EVAL_API_KEY =
     if (!phone?.value.trim()) return false;
     if (!github?.value.trim()) return false;
 
-    // ✅ CV obligatorio
+    // CV obligatorio
     if (!cvFile || cvFile.files.length === 0) return false;
 
-    // ✅ estos TAMBIÉN obligatorios (como me dices)
+    // Universidad/Carrera/Semestre obligatorios
     if (!university?.value.trim()) return false;
     if (!career?.value.trim()) return false;
     if (!semester?.value.trim()) return false;
 
     if (!acceptPolicy?.checked) return false;
 
-    // ✅ debe existir evaluación precargada con preguntas
+    // Evaluación precargada con preguntas
     const evalData = state.evalByPosition.get(pid);
     if (!evalData?.ok || !evalData.questions?.length) return false;
 
     return true;
   }
 
-
   function refreshStartButton() {
     if (!btnStart) return;
-
-    show(btnStart);
-
     const ok = isFormOk();
     btnStart.disabled = !ok;
-
     if (ok) setMsg(formError, "");
   }
 
+  function isAnswerValid(text) {
+    const t = String(text || "").trim();
+    if (t.length < 2) return false;
+    // solo símbolos / puntos / guiones
+    if (/^[\.\,\;\:\-\_\s·•]+$/.test(t)) return false;
+    return true;
+  }
 
   // =============================
-  // Load positions
+  // Load positions + eval
   // =============================
   async function loadPositions() {
     setMsg(formError, "");
-    // deja un placeholder fijo mientras carga
     roleSelect.innerHTML = `<option value="" selected>Cargando...</option>`;
 
-    try {
-      const data = await fetchJson(ENDPOINT_POSITIONS);
+    const data = await fetchJson(ENDPOINT_POSITIONS);
 
-      const positions = Array.isArray(data)
-        ? data
-        : Array.isArray(data.positions)
-          ? data.positions
-          : Array.isArray(data.data)
-            ? data.data
-            : [];
+    const positions = Array.isArray(data)
+      ? data
+      : Array.isArray(data.positions)
+        ? data.positions
+        : Array.isArray(data.data)
+          ? data.data
+          : [];
 
-      roleSelect.innerHTML =
-        `<option value="" disabled selected>Selecciona un cargo</option>`;
+    roleSelect.innerHTML = `<option value="" disabled selected>Selecciona un cargo</option>`;
 
-      for (const p of positions) {
-        const id = String(p.position_id || p.id || "").trim();
-        const name = String(p.position_name || p.name || id || "").trim();
-        if (!id) continue;
-
-        const opt = document.createElement("option");
-        opt.value = id;
-        opt.textContent = name || id;
-        roleSelect.appendChild(opt);
-      }
-    } catch (err) {
-      setMsg(formError, `No se pudieron cargar cargos: ${err.message}`);
-      roleSelect.innerHTML = `<option value="" selected>Error al cargar</option>`;
-    } finally {
-      refreshStartButton();
+    for (const p of positions) {
+      const id = String(p.position_id || p.id || "").trim();
+      const name = String(p.position_name || p.name || id || "").trim();
+      if (!id) continue;
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = name || id;
+      roleSelect.appendChild(opt);
     }
   }
 
@@ -432,18 +421,36 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   // =============================
-  // Exam UI (questionHost)
+  // Exam UI
   // =============================
   function ensureQuestionUI() {
     if (!questionHost) return;
+
     if (questionHost.querySelector("#qText") && questionHost.querySelector("#qAnswer")) return;
 
     questionHost.innerHTML = `
-      <div class="question">
-        <div id="qText" class="question__text"></div>
-        <textarea id="qAnswer" class="input textarea" rows="6"></textarea>
+      <div class="qcard">
+        <div id="qText" class="qtitle"></div>
+        <textarea id="qAnswer" class="input textarea" rows="6" autocomplete="off" spellcheck="false"></textarea>
       </div>
     `.trim();
+
+    // Bloquear pegar SOLO en textarea
+    const ta = questionHost.querySelector("#qAnswer");
+    if (ta) {
+      ta.addEventListener("paste", (e) => {
+        e.preventDefault();
+        registerIncident("paste");
+      });
+      ta.addEventListener("copy", (e) => {
+        e.preventDefault();
+        registerIncident("copy");
+      });
+      ta.addEventListener("cut", (e) => {
+        e.preventDefault();
+        registerIncident("cut");
+      });
+    }
   }
 
   function formatTime(sec) {
@@ -458,18 +465,60 @@ window.PUBLIC_EVAL_API_KEY =
     state.timerHandle = null;
   }
 
+  function applyTimerVisuals() {
+    if (!timerBox) return;
+    timerBox.classList.remove("timer--warn", "timer--danger", "timer--pulse");
+
+    if (state.remaining <= 60) {
+      timerBox.classList.add("timer--danger", "timer--pulse");
+    } else if (state.remaining <= 180) {
+      timerBox.classList.add("timer--warn", "timer--pulse");
+    }
+  }
+
+  function maybeFireWarnings() {
+    if (state.remaining === 180 && !state.warning3mFired) {
+      state.warning3mFired = true;
+      if (timerHint) {
+        timerHint.textContent = "⚠ Quedan 3 minutos";
+        show(timerHint);
+      }
+    }
+    if (state.remaining === 60 && !state.warning1mFired) {
+      state.warning1mFired = true;
+      if (timerHint) {
+        timerHint.textContent = "⏳ Queda 1 minuto";
+        show(timerHint);
+      }
+    }
+    if (state.remaining === 0) {
+      if (timerHint) hide(timerHint);
+    }
+  }
+
   function startTimer() {
     stopTimer();
     if (timerBox) show(timerBox);
+
+    if (timerLabel) timerLabel.textContent = "Tiempo";
     if (timerEl) timerEl.textContent = formatTime(state.remaining);
+    if (timerHint) hide(timerHint);
+
+    state.warning3mFired = false;
+    state.warning1mFired = false;
+
+    applyTimerVisuals();
 
     state.timerHandle = setInterval(() => {
       state.remaining -= 1;
       if (timerEl) timerEl.textContent = formatTime(state.remaining);
 
+      applyTimerVisuals();
+      maybeFireWarnings();
+
       if (state.remaining <= 0) {
         stopTimer();
-        finishExam().catch(() => {});
+        finishExam({ dueToTimeout: true }).catch(() => {});
       }
     }, 1000);
   }
@@ -487,33 +536,31 @@ window.PUBLIC_EVAL_API_KEY =
 
   function renderQuestion() {
     ensureQuestionUI();
+
     const q = state.questions[currentIndex];
     if (!q) return;
 
-    const qTextEl2 = questionHost.querySelector("#qText");
-    const qAnswerEl2 = questionHost.querySelector("#qAnswer");
-
-    qAnswerEl2.addEventListener("paste", (e) => {
-      e.preventDefault();
-      registerIncident("paste");
-    });
+    const qTextEl = questionHost.querySelector("#qText");
+    const qAnswerEl = questionHost.querySelector("#qAnswer");
 
     const moduleName = q.moduleName || q.module || "";
     const prompt = q.prompt || q.text || q.question || "";
 
-    qTextEl2.textContent = moduleName
+    const text = moduleName
       ? `${currentIndex + 1}. ${moduleName}: ${prompt}`
       : `${currentIndex + 1}. ${prompt}`;
 
-    qAnswerEl2.value = state.answers[currentIndex] || "";
-    qAnswerEl2.placeholder = "Escribe tu respuesta aquí...";
-    qAnswerEl2.focus();
+    if (qTextEl) qTextEl.textContent = text;
 
-    // Botones
-    btnPrev.disabled = currentIndex === 0;
+    if (qAnswerEl) {
+      qAnswerEl.value = state.answers[currentIndex] || "";
+      qAnswerEl.placeholder = "Escribe tu respuesta aquí...";
+      qAnswerEl.focus();
+    }
 
-    // mostrar Submit solo en la última
-    if (currentIndex === state.questions.length - 1) {
+    // Botones: SOLO 1 visible (centrado)
+    const last = currentIndex === state.questions.length - 1;
+    if (last) {
       hide(btnNext);
       show(btnSubmit);
     } else {
@@ -537,25 +584,39 @@ window.PUBLIC_EVAL_API_KEY =
     state.questions = evalData.questions;
     state.answers = new Array(state.questions.length).fill("");
 
-    state.durationSeconds = Math.max(1, (evalData.duration_minutes || 10) * 60);
+    state.durationSeconds = Math.max(60, (evalData.duration_minutes || 10) * 60);
     state.remaining = state.durationSeconds;
 
     currentIndex = 0;
     state.examStarted = true;
 
     goToExamStep();
+
+    // Asegura botones iniciales
+    show(btnNext);
+    hide(btnSubmit);
+
     renderQuestion();
     startTimer();
   }
 
-  async function finishExam() {
+  async function finishExam({ dueToTimeout = false } = {}) {
     saveCurrentAnswer();
 
-    const empty = state.answers.findIndex((a) => !a || !a.trim());
-    if (empty !== -1) {
-      currentIndex = empty;
+    const emptyIdx = state.answers.findIndex((a) => !isAnswerValid(a));
+    if (emptyIdx !== -1) {
+      if (dueToTimeout) {
+        setMsg(examError, "Se agotó el tiempo.");
+        state.examStarted = false;
+        stopTimer();
+        if (btnNext) btnNext.disabled = true;
+        if (btnSubmit) btnSubmit.disabled = true;
+        return;
+      }
+
+      currentIndex = emptyIdx;
       renderQuestion();
-      setMsg(examError, `Falta responder la pregunta ${empty + 1}.`);
+      setMsg(examError, `Debes responder la pregunta ${emptyIdx + 1} antes de continuar.`);
       return;
     }
 
@@ -569,9 +630,9 @@ window.PUBLIC_EVAL_API_KEY =
       return;
     }
 
-    btnSubmit.disabled = true;
-    const originalText = btnSubmit.textContent;
-    btnSubmit.textContent = "Enviando...";
+    if (btnSubmit) btnSubmit.disabled = true;
+    const originalText = btnSubmit?.textContent || "Enviar evaluación";
+    if (btnSubmit) btnSubmit.textContent = "Enviando...";
 
     try {
       const cvB64 = await fileToBase64NoPrefix(file);
@@ -612,24 +673,26 @@ window.PUBLIC_EVAL_API_KEY =
           mime: file.type || "application/pdf",
           base64: cvB64,
         },
-
         incidents: {
           total: state.incidents.total,
-          detail: state.incidents.byQuestion
+          detail: state.incidents.byQuestion,
         },
-
+        timing: {
+          duration_seconds: state.durationSeconds,
+          remaining_seconds: state.remaining,
+          finished_by_timeout: !!dueToTimeout,
+        },
       };
 
       await postJson(ENDPOINT_SUBMIT, payload);
 
-      // Modal resultado (tu HTML)
       if (mrMsg) mrMsg.textContent = "Evaluación enviada.";
       openModalResult();
     } catch (err) {
       setMsg(examError, err?.message || "No se pudo enviar la evaluación.");
     } finally {
-      btnSubmit.disabled = false;
-      btnSubmit.textContent = originalText;
+      if (btnSubmit) btnSubmit.disabled = false;
+      if (btnSubmit) btnSubmit.textContent = originalText;
     }
   }
 
@@ -689,7 +752,6 @@ window.PUBLIC_EVAL_API_KEY =
     refreshStartButton();
   });
 
-  // Start: SOLO abre modal si ya está OK (pero igual estará disabled si no)
   btnStart?.addEventListener("click", (e) => {
     e.preventDefault();
     if (!isFormOk()) {
@@ -708,24 +770,24 @@ window.PUBLIC_EVAL_API_KEY =
     el.addEventListener("click", closeModalInfo);
   });
 
-  // Modal resultado: cerrar con cualquier data-close
   modalResult?.querySelectorAll('[data-close="1"]').forEach((el) => {
     el.addEventListener("click", closeModalResult);
   });
 
-  // Examen navegación
-  btnPrev?.addEventListener("click", () => {
-    if (!state.examStarted) return;
-    saveCurrentAnswer();
-    if (currentIndex > 0) {
-      currentIndex -= 1;
-      renderQuestion();
-    }
-  });
-
+  // Navegación: NO avanza si respuesta no válida
   btnNext?.addEventListener("click", () => {
     if (!state.examStarted) return;
+
+    const ta = questionHost?.querySelector("#qAnswer");
+    const currentVal = String(ta?.value || "").trim();
+
+    if (!isAnswerValid(currentVal)) {
+      setMsg(examError, "Debes escribir una respuesta válida para continuar.");
+      return;
+    }
+
     saveCurrentAnswer();
+
     if (currentIndex < state.questions.length - 1) {
       currentIndex += 1;
       renderQuestion();
@@ -734,10 +796,20 @@ window.PUBLIC_EVAL_API_KEY =
 
   btnSubmit?.addEventListener("click", async () => {
     if (!state.examStarted) return;
-    await finishExam();
+
+    const ta = questionHost?.querySelector("#qAnswer");
+    const currentVal = String(ta?.value || "").trim();
+
+    if (!isAnswerValid(currentVal)) {
+      setMsg(examError, "Debes escribir una respuesta válida antes de enviar.");
+      return;
+    }
+
+    await finishExam({ dueToTimeout: false });
   });
 
-  ["copy", "cut", "paste"].forEach(evt => {
+  // Bloquear copiar / cortar / pegar durante examen (silencioso)
+  ["copy", "cut", "paste"].forEach((evt) => {
     document.addEventListener(evt, (e) => {
       if (!state.examStarted) return;
       e.preventDefault();
@@ -745,6 +817,13 @@ window.PUBLIC_EVAL_API_KEY =
     });
   });
 
+  // Bloquear click derecho (evita copiar)
+  document.addEventListener("contextmenu", (e) => {
+    if (!state.examStarted) return;
+    e.preventDefault();
+  });
+
+  // Cambiar de pestaña / salir de foco
   window.addEventListener("blur", () => {
     if (!state.examStarted) return;
     registerIncident("blur");
@@ -752,56 +831,49 @@ window.PUBLIC_EVAL_API_KEY =
 
   document.addEventListener("visibilitychange", () => {
     if (!state.examStarted) return;
-    if (document.visibilityState === "hidden") {
-      registerIncident("blur");
+    if (document.visibilityState === "hidden") registerIncident("blur");
+  });
+
+  // Intento de captura: PrintScreen (no es 100% fiable, pero suma control)
+  document.addEventListener("keydown", (e) => {
+    if (!state.examStarted) return;
+    if (e.key === "PrintScreen") {
+      registerIncident("screenshot");
     }
   });
 
   // =============================
   // Init
   // =============================
-    document.addEventListener("DOMContentLoaded", async () => {
-      // Estado inicial
-      hide(examCard);
-      show(form);
+  document.addEventListener("DOMContentLoaded", async () => {
+    hide(examCard);
+    show(form);
 
+    if (btnStart) {
       show(btnStart);
       btnStart.disabled = true;
+    }
 
-      updateCvPickerLabel();
+    updateCvPickerLabel();
 
-      // ✅ WAKE Render (despierta el servicio)
-      await wakeRender();
+    await wakeRender();
 
-      // ✅ Cargar cargos con reintentos (por si Render aún está levantando)
-      try {
-        await withRetry(async () => {
-          await loadPositions();
+    try {
+      await withRetry(async () => {
+        await loadPositions();
+        const optionsCount = roleSelect?.querySelectorAll("option")?.length || 0;
+        if (optionsCount <= 1) throw new Error("Cargos aún no disponibles");
+      }, 7);
+    } catch (e) {
+      setMsg(formError, "El servicio está iniciando. Espera unos segundos y recarga la página.");
+      roleSelect.innerHTML = `<option value="" selected>Cargando...</option>`;
+    }
 
-          // valida que ya haya opciones reales
-          const optionsCount =
-            roleSelect?.querySelectorAll("option")?.length || 0;
+    refreshStartButton();
+  });
 
-          if (optionsCount <= 1) {
-            throw new Error("Cargos aún no disponibles");
-          }
-        }, 7);
-      } catch (e) {
-        setMsg(
-          formError,
-          "El servicio está iniciando. Espera unos segundos y recarga la página."
-        );
-      }
-
-      refreshStartButton();
-    });
-
-    // ✅ Cada vez que el usuario vuelve a la pestaña → despierta Render
-    document.addEventListener("visibilitychange", async () => {
-      if (document.visibilityState === "visible") {
-        await wakeRender();
-      }
-    });
-
-
+  // Si vuelven a la pestaña, “toca” el servicio por si se duerme
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState === "visible") await wakeRender();
+  });
 })();

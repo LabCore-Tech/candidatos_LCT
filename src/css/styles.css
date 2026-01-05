@@ -589,3 +589,52 @@ body{
   opacity: 1;
 }
 
+/* =============================
+   FIXES (sin tocar tu estilo base)
+   ============================= */
+
+/* Input file oculto + botón visual */
+.file-hidden{
+  position:absolute !important;
+  width:1px !important;
+  height:1px !important;
+  padding:0 !important;
+  margin:-1px !important;
+  overflow:hidden !important;
+  clip:rect(0,0,0,0) !important;
+  white-space:nowrap !important;
+  border:0 !important;
+}
+.file-like{ cursor:pointer; }
+.file-like.has-file{ opacity: .95; }
+
+/* No permitir seleccionar el texto de la pregunta */
+#qText, .qtitle{ user-select:none; }
+
+/* Acciones centradas (solo 1 botón visible) */
+.examActions--center{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap: 16px;
+}
+
+/* Botón siguiente (icon-only) */
+.btn-next{
+  min-width: 260px;
+}
+.btn-next .btn-icon{
+  font-size: 28px;
+  line-height: 1;
+}
+
+/* Timer señales visuales */
+.timer--warn .timer__value{ font-weight: 800; }
+.timer--danger .timer__value{ font-weight: 900; }
+.timer__hint{ margin-top:6px; font-size: 12px; opacity:.9; }
+.timer--pulse{ animation: timerPulse 1s infinite; }
+@keyframes timerPulse{
+  0%{ transform: scale(1); }
+  50%{ transform: scale(1.02); }
+  100%{ transform: scale(1); }
+}
