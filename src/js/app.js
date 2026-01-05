@@ -224,26 +224,20 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
     if (!firstName.value.trim()) return false;
     if (!lastName.value.trim()) return false;
     if (!cedula.value.trim()) return false;
+    if (!role.value) return false;
+    if (!email.value.trim()) return false;
+    if (!phone.value.trim()) return false;
+    if (!github.value.trim()) return false;
 
-    // ✅ Si estos inputs existen en tu HTML, se vuelven obligatorios (backend los exige)
-    if (email && !email.value.trim()) return false;
-    if (phone && !phone.value.trim()) return false;
-    if (github && !github.value.trim()) return false;
+    // ✅ VALIDACIÓN REAL DEL CV
+    if (!cvFile || cvFile.files.length === 0) return false;
 
     if (!university.value.trim()) return false;
-    if (!career.value.trim()) return false;
-    if (!semester.value.trim()) return false;
-    if (!roleSelect.value.trim()) return false;
-    if (!cvFile.files || cvFile.files.length === 0) return false;
     if (!acceptPolicy.checked) return false;
-
-    const pid = roleSelect.value.trim();
-    const evalData = state.evalByPosition.get(pid);
-    if (!evalData?.ok) return false;
-    if (!Array.isArray(evalData.questions) || evalData.questions.length === 0) return false;
 
     return true;
   }
+
 
   function refreshStartButton() {
     if (!btnStart) return;
@@ -503,6 +497,10 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
     startTimer();
   }
 
+  cvFile.addEventListener("change", () => {
+    updateCvPickerLabel();
+    refreshStartButton();
+  });
   // =============================
   // Events
   // =============================
