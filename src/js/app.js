@@ -165,23 +165,34 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   function normalizeEvalResponse(data) {
-    // A) { ok:true, questions:[...] }
-    // B) { eval:{questions:[...], duration_minutes} }
-    if (data?.ok === true) {
-      return {
-        ok: true,
-        questions: Array.isArray(data.questions) ? data.questions : [],
-        duration_minutes: 10,
-      };
+    const qCandidates = [
+      data?.questions,
+      data?.eval?.questions,
+      data?.qb?.questions,
+      data?.qb?.items,
+      data?.data?.questions,
+      data?.data?.eval?.questions,
+    ];
+
+    let questions = [];
+    for (const q of qCandidates) {
+      if (Array.isArray(q) && q.length) { questions = q; break; }
     }
-    if (data?.eval) {
-      return {
-        ok: true,
-        questions: Array.isArray(data.eval.questions) ? data.eval.questions : [],
-        duration_minutes: Number(data.eval.duration_minutes || 10),
-      };
-    }
-    return { ok: false, questions: [], duration_minutes: 10 };
+
+    const duration =
+      Number(
+        data?.duration_minutes ??
+        data?.eval?.duration_minutes ??
+        data?.qb?.duration_minutes ??
+        10
+      ) || 10;
+
+    return {
+      ok: data?.ok === true || !!data?.eval || !!data?.qb,
+      questions: Array.isArray(questions) ? questions : [],
+      duration_minutes: duration,
+      raw: data,
+    };
   }
 
   // =============================
@@ -638,6 +649,8 @@ window.PUBLIC_EVAL_API_KEY =
     // Botón submit oculto al inicio
     hide(btnSubmit);
     show(btnNext);
+
+    fetch(ENDPOINT_POSITIONS, { method: "GET", headers: headers() }).catch(() => {});
 
     await loadPositions();
     refreshStartButton();
