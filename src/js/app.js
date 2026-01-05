@@ -1,12 +1,12 @@
 /* LabCore - Evaluación de ingreso (front)
    - Carga cargos (positions)
    - Precarga evaluación (questions) por cargo
-   - "Iniciar prueba" visible siempre, habilitado solo si formulario OK + evaluación OK
+   - Botón "Iniciar prueba" deshabilitado hasta que el formulario esté OK + evaluación OK
    - Step 1: Datos del postulante
-   - Step 2: Solo evaluación
+   - Step 2: Solo evaluación (pregunta + respuesta)
 */
 
-// 🔐 API KEY pública para evaluación (tu valor)
+// 🔐 API KEY pública para evaluación
 window.PUBLIC_EVAL_API_KEY =
   window.PUBLIC_EVAL_API_KEY ||
   "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98";
@@ -22,6 +22,7 @@ window.PUBLIC_EVAL_API_KEY =
   const ENDPOINT_EVAL = `${API_BASE}/api/gh/public/eval`; // ?position_id=xxx
   const ENDPOINT_SUBMIT = `${API_BASE}/api/gh/public/submit`;
 
+  // Si existe meta, también se puede tomar de ahí
   const metaKey =
     document
       .querySelector('meta[name="PUBLIC_EVAL_API_KEY"]')
@@ -34,9 +35,11 @@ window.PUBLIC_EVAL_API_KEY =
   const $ = (id) => document.getElementById(id);
 
   const form = $("candidateForm");
+
   const firstName = $("firstName");
   const lastName = $("lastName");
   const cedula = $("cedula");
+  const roleSelect = $("role");
 
   const email = $("email");
   const phone = $("phone");
@@ -47,35 +50,37 @@ window.PUBLIC_EVAL_API_KEY =
   const career = $("career");
   const semester = $("semester");
 
-  const roleSelect = $("role");
+  const cvFile = $("cvFile");
+  const cvPicker = $("cvPicker");
 
-  const cvFile = $("cvFile");     // input type=file (hidden)
-  const cvPicker = $("cvPicker"); // button (campo visible)
   const acceptPolicy = $("acceptPolicy");
 
   const btnStart = $("btnStart");
   const formError = $("formError");
-  const uiMsg = $("uiMsg");
 
   const examCard = $("examCard");
+  const timerBox = $("timerBox");
   const timerEl = $("timer");
-  const qTextEl = $("qText");
-  const qAnswerEl = $("qAnswer");
-  const btnNext = $("btnNext");
   const examError = $("examError");
 
+  const questionHost = $("questionHost");
+  const btnPrev = $("btnPrev");
+  const btnNext = $("btnNext");
+  const btnSubmit = $("btnSubmit");
+
+  // Modal info
   const modalInfo = $("modalInfo");
   const btnContinue = $("btnContinue");
-  const modalDone = $("modalDone");
-  const modalDoneClose = $("modalDoneClose");
-  const btnDoneOk = $("btnDoneOk");
+
+  // Modal resultado (tu HTML se llama modalResult)
+  const modalResult = $("modalResult");
+  const mrMsg = $("mrMsg");
 
   // =============================
   // State
   // =============================
   const state = {
     evalByPosition: new Map(), // positionId -> { ok, questions, duration_minutes }
-    activePositionId: "",
     questions: [],
     answers: [],
     durationSeconds: 10 * 60,
@@ -87,27 +92,33 @@ window.PUBLIC_EVAL_API_KEY =
   let currentIndex = 0;
 
   // =============================
-  // Utils
+  // Utils UI
   // =============================
   function setMsg(el, msg) {
     if (!el) return;
     el.textContent = msg || "";
-    el.style.display = msg ? "block" : "none";
+    if (msg) el.classList.remove("hidden", "is-hidden");
+    else el.classList.add("hidden");
   }
 
   function show(el) {
     if (!el) return;
-    el.classList.remove("is-hidden", "hidden");
+    el.classList.remove("hidden");
+    el.classList.remove("is-hidden");
   }
 
   function hide(el) {
     if (!el) return;
+    el.classList.add("hidden");
     el.classList.add("is-hidden");
   }
 
+  // =============================
+  // HTTP
+  // =============================
   function headers() {
     const h = { Accept: "application/json" };
-    if (PUBLIC_KEY) h["X-Api-Key"] = PUBLIC_KEY; // 👈 CLAVE para evitar 401
+    if (PUBLIC_KEY) h["X-Api-Key"] = PUBLIC_KEY;
     return h;
   }
 
@@ -154,7 +165,6 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   function normalizeEvalResponse(data) {
-    // Soporta:
     // A) { ok:true, questions:[...] }
     // B) { eval:{questions:[...], duration_minutes} }
     if (data?.ok === true) {
@@ -172,19 +182,6 @@ window.PUBLIC_EVAL_API_KEY =
       };
     }
     return { ok: false, questions: [], duration_minutes: 10 };
-  }
-
-  function formatTime(sec) {
-    const s = Math.max(0, sec | 0);
-    const mm = String(Math.floor(s / 60)).padStart(2, "0");
-    const ss = String(s % 60).padStart(2, "0");
-    return `${mm}:${ss}`;
-  }
-
-  function goToExamStep() {
-    hide(form);
-    show(examCard);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   // =============================
@@ -210,21 +207,30 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   // =============================
-  // Validation
+  // Validation (NO se quita)
   // =============================
+  function hasPdfSelected() {
+    const f = cvFile?.files?.[0];
+    if (!f) return false;
+    // Aceptar por mime o por extensión (por si navegador no pone mime)
+    const mime = String(f.type || "").toLowerCase();
+    const name = String(f.name || "").toLowerCase();
+    if (mime === "application/pdf") return true;
+    if (name.endsWith(".pdf")) return true;
+    return false;
+  }
+
   function isFormOk() {
     if (!firstName?.value.trim()) return false;
     if (!lastName?.value.trim()) return false;
     if (!cedula?.value.trim()) return false;
 
-    const pid = roleSelect?.value ? String(roleSelect.value).trim() : "";
+    const pid = String(roleSelect?.value || "").trim();
     if (!pid) return false;
 
     if (!email?.value.trim()) return false;
     if (!phone?.value.trim()) return false;
     if (!github?.value.trim()) return false;
-
-    if (!cvFile || cvFile.files.length === 0) return false;
 
     if (!university?.value.trim()) return false;
     if (!career?.value.trim()) return false;
@@ -232,7 +238,9 @@ window.PUBLIC_EVAL_API_KEY =
 
     if (!acceptPolicy?.checked) return false;
 
-    // además: debe existir evaluación precargada con preguntas
+    if (!hasPdfSelected()) return false;
+
+    // También debe existir evaluación precargada OK + con preguntas
     const evalData = state.evalByPosition.get(pid);
     if (!evalData?.ok || !evalData.questions?.length) return false;
 
@@ -240,31 +248,30 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   function refreshStartButton() {
-     if (!btnStart) return;
-   
-     // ✅ SIEMPRE visible y SIEMPRE habilitado
-     show(btnStart);
-     btnStart.disabled = false;
-   
-     // Si quieres limpiar mensajes cuando ya está ok
-     if (isFormOk()) setMsg(formError, "");
-   }
+    if (!btnStart) return;
 
+    // Siempre visible, pero deshabilitado hasta que cumpla todo
+    show(btnStart);
+
+    if (isFormOk()) {
+      btnStart.disabled = false;
+      setMsg(formError, "");
+    } else {
+      btnStart.disabled = true;
+    }
+  }
 
   // =============================
   // Load positions
   // =============================
   async function loadPositions() {
-    setMsg(uiMsg, "Cargando cargos...");
     setMsg(formError, "");
+    // deja un placeholder fijo mientras carga
+    roleSelect.innerHTML = `<option value="" selected>Cargando...</option>`;
 
     try {
       const data = await fetchJson(ENDPOINT_POSITIONS);
 
-      // Respuestas posibles:
-      // - array directo
-      // - { positions:[...] }
-      // - { data:[...] }
       const positions = Array.isArray(data)
         ? data
         : Array.isArray(data.positions)
@@ -286,11 +293,9 @@ window.PUBLIC_EVAL_API_KEY =
         opt.textContent = name || id;
         roleSelect.appendChild(opt);
       }
-
-      setMsg(uiMsg, "");
     } catch (err) {
-      setMsg(uiMsg, "");
       setMsg(formError, `No se pudieron cargar cargos: ${err.message}`);
+      roleSelect.innerHTML = `<option value="" selected>Error al cargar</option>`;
     } finally {
       refreshStartButton();
     }
@@ -301,7 +306,6 @@ window.PUBLIC_EVAL_API_KEY =
     if (!pid) return;
     if (state.evalByPosition.has(pid)) return;
 
-    setMsg(uiMsg, "Cargando evaluación...");
     setMsg(formError, "");
 
     try {
@@ -314,21 +318,37 @@ window.PUBLIC_EVAL_API_KEY =
         setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
       } else if (!normalized.questions?.length) {
         setMsg(formError, "La evaluación existe, pero no tiene preguntas.");
-      } else {
-        setMsg(formError, "");
       }
     } catch (err) {
       state.evalByPosition.set(pid, { ok: false, questions: [], duration_minutes: 10 });
       setMsg(formError, `No se pudo cargar la evaluación: ${err.message}`);
     } finally {
-      setMsg(uiMsg, "");
       refreshStartButton();
     }
   }
 
   // =============================
-  // Exam flow
+  // Exam UI (questionHost)
   // =============================
+  function ensureQuestionUI() {
+    if (!questionHost) return;
+    if (questionHost.querySelector("#qText") && questionHost.querySelector("#qAnswer")) return;
+
+    questionHost.innerHTML = `
+      <div class="question">
+        <div id="qText" class="question__text"></div>
+        <textarea id="qAnswer" class="input textarea" rows="6"></textarea>
+      </div>
+    `.trim();
+  }
+
+  function formatTime(sec) {
+    const s = Math.max(0, sec | 0);
+    const mm = String(Math.floor(s / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return `${mm}:${ss}`;
+  }
+
   function stopTimer() {
     if (state.timerHandle) clearInterval(state.timerHandle);
     state.timerHandle = null;
@@ -336,10 +356,13 @@ window.PUBLIC_EVAL_API_KEY =
 
   function startTimer() {
     stopTimer();
-    timerEl.textContent = formatTime(state.remaining);
+    if (timerBox) show(timerBox);
+    if (timerEl) timerEl.textContent = formatTime(state.remaining);
+
     state.timerHandle = setInterval(() => {
       state.remaining -= 1;
-      timerEl.textContent = formatTime(state.remaining);
+      if (timerEl) timerEl.textContent = formatTime(state.remaining);
+
       if (state.remaining <= 0) {
         stopTimer();
         finishExam().catch(() => {});
@@ -347,27 +370,47 @@ window.PUBLIC_EVAL_API_KEY =
     }, 1000);
   }
 
+  function goToExamStep() {
+    hide(form);
+    show(examCard);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function saveCurrentAnswer() {
-    state.answers[currentIndex] = (qAnswerEl.value || "").trim();
+    const ta = questionHost?.querySelector("#qAnswer");
+    state.answers[currentIndex] = String(ta?.value || "").trim();
   }
 
   function renderQuestion() {
+    ensureQuestionUI();
     const q = state.questions[currentIndex];
     if (!q) return;
+
+    const qTextEl2 = questionHost.querySelector("#qText");
+    const qAnswerEl2 = questionHost.querySelector("#qAnswer");
 
     const moduleName = q.moduleName || q.module || "";
     const prompt = q.prompt || q.text || q.question || "";
 
-    qTextEl.textContent = moduleName
+    qTextEl2.textContent = moduleName
       ? `${currentIndex + 1}. ${moduleName}: ${prompt}`
       : `${currentIndex + 1}. ${prompt}`;
 
-    qAnswerEl.value = state.answers[currentIndex] || "";
-    qAnswerEl.placeholder = "Escribe tu respuesta aquí...";
-    qAnswerEl.focus();
+    qAnswerEl2.value = state.answers[currentIndex] || "";
+    qAnswerEl2.placeholder = "Escribe tu respuesta aquí...";
+    qAnswerEl2.focus();
 
-    btnNext.textContent =
-      currentIndex === state.questions.length - 1 ? "Enviar evaluación" : "Siguiente";
+    // Botones
+    btnPrev.disabled = currentIndex === 0;
+
+    // mostrar Submit solo en la última
+    if (currentIndex === state.questions.length - 1) {
+      hide(btnNext);
+      show(btnSubmit);
+    } else {
+      show(btnNext);
+      hide(btnSubmit);
+    }
 
     setMsg(examError, "");
   }
@@ -382,9 +425,9 @@ window.PUBLIC_EVAL_API_KEY =
       return;
     }
 
-    state.activePositionId = pid;
     state.questions = evalData.questions;
     state.answers = new Array(state.questions.length).fill("");
+
     state.durationSeconds = Math.max(1, (evalData.duration_minutes || 10) * 60);
     state.remaining = state.durationSeconds;
 
@@ -412,19 +455,17 @@ window.PUBLIC_EVAL_API_KEY =
       setMsg(examError, "Falta adjuntar el CV.");
       return;
     }
-
-    if ((file.type || "").toLowerCase() !== "application/pdf") {
+    if (!hasPdfSelected()) {
       setMsg(examError, "El CV debe ser PDF.");
       return;
     }
 
-    btnNext.disabled = true;
-    const originalBtnText = btnNext.textContent;
-    btnNext.textContent = "Enviando...";
+    btnSubmit.disabled = true;
+    const originalText = btnSubmit.textContent;
+    btnSubmit.textContent = "Enviando...";
 
     try {
       const cvB64 = await fileToBase64NoPrefix(file);
-
       const pid = String(roleSelect.value || "").trim();
 
       const payload = {
@@ -440,7 +481,7 @@ window.PUBLIC_EVAL_API_KEY =
           email: email.value.trim(),
           phone: phone.value.trim(),
           github: github.value.trim(),
-          linkedin: linkedin.value.trim(),
+          linkedin: (linkedin?.value || "").trim(),
 
           university: university.value.trim(),
           career: career.value.trim(),
@@ -465,12 +506,15 @@ window.PUBLIC_EVAL_API_KEY =
       };
 
       await postJson(ENDPOINT_SUBMIT, payload);
-      openModalDone("Evaluación enviada");
+
+      // Modal resultado (tu HTML)
+      if (mrMsg) mrMsg.textContent = "Evaluación enviada.";
+      openModalResult();
     } catch (err) {
       setMsg(examError, err?.message || "No se pudo enviar la evaluación.");
     } finally {
-      btnNext.disabled = false;
-      btnNext.textContent = originalBtnText;
+      btnSubmit.disabled = false;
+      btnSubmit.textContent = originalText;
     }
   }
 
@@ -489,18 +533,16 @@ window.PUBLIC_EVAL_API_KEY =
     modalInfo.classList.add("hidden");
   }
 
-  function openModalDone(title) {
-    if (!modalDone) return;
-    const t = $("modalDoneTitle");
-    if (t) t.textContent = title || "Listo";
-    modalDone.classList.remove("hidden", "is-hidden");
-    modalDone.classList.add("open");
+  function openModalResult() {
+    if (!modalResult) return;
+    modalResult.classList.remove("hidden", "is-hidden");
+    modalResult.classList.add("open");
   }
 
-  function closeModalDone() {
-    if (!modalDone) return;
-    modalDone.classList.remove("open");
-    modalDone.classList.add("hidden");
+  function closeModalResult() {
+    if (!modalResult) return;
+    modalResult.classList.remove("open");
+    modalResult.classList.add("hidden");
   }
 
   // =============================
@@ -508,12 +550,9 @@ window.PUBLIC_EVAL_API_KEY =
   // =============================
   const revalidate = () => refreshStartButton();
 
-  [firstName, lastName, cedula, university, career, semester].forEach((el) =>
-    el?.addEventListener("input", revalidate)
-  );
-  [email, phone, github, linkedin].forEach((el) =>
-    el?.addEventListener("input", revalidate)
-  );
+  [firstName, lastName, cedula, email, phone, github, linkedin, university, career, semester]
+    .forEach((el) => el?.addEventListener("input", revalidate));
+
   acceptPolicy?.addEventListener("change", revalidate);
 
   cvPicker?.addEventListener("click", () => cvFile?.click());
@@ -531,23 +570,19 @@ window.PUBLIC_EVAL_API_KEY =
 
   roleSelect?.addEventListener("change", async () => {
     const pid = String(roleSelect.value || "").trim();
-    state.activePositionId = pid;
     await preloadEvalForPosition(pid);
     refreshStartButton();
   });
 
+  // Start: SOLO abre modal si ya está OK (pero igual estará disabled si no)
   btnStart?.addEventListener("click", (e) => {
-     e.preventDefault();
-   
-     // ✅ Aquí validas (en vez de deshabilitar el botón)
-     if (!isFormOk()) {
-       setMsg(formError, "Completa todos los campos obligatorios y adjunta tu hoja de vida (PDF).");
-       return;
-     }
-   
-     // ✅ Si todo está OK, recién ahí abre la popup
-     openModalInfo();
-   });
+    e.preventDefault();
+    if (!isFormOk()) {
+      setMsg(formError, "Completa todos los campos obligatorios (*) y adjunta tu PDF.");
+      return;
+    }
+    openModalInfo();
+  });
 
   btnContinue?.addEventListener("click", () => {
     closeModalInfo();
@@ -558,21 +593,34 @@ window.PUBLIC_EVAL_API_KEY =
     el.addEventListener("click", closeModalInfo);
   });
 
-  btnNext?.addEventListener("click", async () => {
+  // Modal resultado: cerrar con cualquier data-close
+  modalResult?.querySelectorAll('[data-close="1"]').forEach((el) => {
+    el.addEventListener("click", closeModalResult);
+  });
+
+  // Examen navegación
+  btnPrev?.addEventListener("click", () => {
     if (!state.examStarted) return;
     saveCurrentAnswer();
+    if (currentIndex > 0) {
+      currentIndex -= 1;
+      renderQuestion();
+    }
+  });
 
+  btnNext?.addEventListener("click", () => {
+    if (!state.examStarted) return;
+    saveCurrentAnswer();
     if (currentIndex < state.questions.length - 1) {
       currentIndex += 1;
       renderQuestion();
-      return;
     }
-
-    await finishExam();
   });
 
-  modalDoneClose?.addEventListener("click", closeModalDone);
-  btnDoneOk?.addEventListener("click", closeModalDone);
+  btnSubmit?.addEventListener("click", async () => {
+    if (!state.examStarted) return;
+    await finishExam();
+  });
 
   // =============================
   // Init
@@ -581,11 +629,18 @@ window.PUBLIC_EVAL_API_KEY =
     hide(examCard);
     show(form);
 
+    updateCvPickerLabel();
+
+    // Botón inicia deshabilitado (como te gusta)
     show(btnStart);
     btnStart.disabled = true;
 
-    updateCvPickerLabel();
+    // Botón submit oculto al inicio
+    hide(btnSubmit);
+    show(btnNext);
+
     await loadPositions();
     refreshStartButton();
   });
+
 })();
