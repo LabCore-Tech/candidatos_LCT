@@ -165,35 +165,59 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   function normalizeEvalResponse(data) {
-    const qCandidates = [
-      data?.questions,
-      data?.eval?.questions,
-      data?.qb?.questions,
-      data?.qb?.items,
-      data?.data?.questions,
-      data?.data?.eval?.questions,
-    ];
+    // Soporta:
+    // A) { ok:true, questions:[...] }
+    // B) { ok:true, eval:{questions:[...]} }
+    // C) { ok:true, modules:[{id,name,questions:[{id,text}]}...] }  ✅ TU CASO
 
-    let questions = [];
-    for (const q of qCandidates) {
-      if (Array.isArray(q) && q.length) { questions = q; break; }
+    // 1) caso directo
+    if (data?.ok === true && Array.isArray(data.questions)) {
+      return {
+        ok: true,
+        questions: data.questions,
+        duration_minutes: Number(data.duration_minutes || 10),
+        raw: data,
+      };
     }
 
-    const duration =
-      Number(
-        data?.duration_minutes ??
-        data?.eval?.duration_minutes ??
-        data?.qb?.duration_minutes ??
-        10
-      ) || 10;
+    // 2) caso eval.questions
+    if (data?.eval && Array.isArray(data.eval.questions)) {
+      return {
+        ok: true,
+        questions: data.eval.questions,
+        duration_minutes: Number(data.eval.duration_minutes || 10),
+        raw: data,
+      };
+    }
 
-    return {
-      ok: data?.ok === true || !!data?.eval || !!data?.qb,
-      questions: Array.isArray(questions) ? questions : [],
-      duration_minutes: duration,
-      raw: data,
-    };
+    // 3) ✅ TU CASO: modules[].questions[]  -> aplanar a [{id,moduleId,moduleName,prompt}]
+    if (data?.ok === true && Array.isArray(data.modules)) {
+      const flat = [];
+      for (const m of data.modules) {
+        const moduleId = String(m?.id || m?.moduleId || m?.code || "").trim();
+        const moduleName = String(m?.name || m?.moduleName || "").trim();
+        const qs = Array.isArray(m?.questions) ? m.questions : [];
+        for (const q of qs) {
+          flat.push({
+            id: q?.id || q?.qid || "",
+            moduleId,
+            moduleName,
+            prompt: q?.text || q?.prompt || q?.question || "",
+          });
+        }
+      }
+
+      return {
+        ok: true,
+        questions: flat,
+        duration_minutes: Number(data.duration_minutes || 10),
+        raw: data,
+      };
+    }
+
+    return { ok: false, questions: [], duration_minutes: 10, raw: data };
   }
+
 
   // =============================
   // CV picker
@@ -236,41 +260,42 @@ window.PUBLIC_EVAL_API_KEY =
     if (!lastName?.value.trim()) return false;
     if (!cedula?.value.trim()) return false;
 
-    const pid = String(roleSelect?.value || "").trim();
+    const pid = roleSelect?.value ? String(roleSelect.value).trim() : "";
     if (!pid) return false;
 
     if (!email?.value.trim()) return false;
     if (!phone?.value.trim()) return false;
     if (!github?.value.trim()) return false;
 
+    // ✅ CV obligatorio
+    if (!cvFile || cvFile.files.length === 0) return false;
+
+    // ✅ estos TAMBIÉN obligatorios (como me dices)
     if (!university?.value.trim()) return false;
     if (!career?.value.trim()) return false;
     if (!semester?.value.trim()) return false;
 
     if (!acceptPolicy?.checked) return false;
 
-    if (!hasPdfSelected()) return false;
-
-    // También debe existir evaluación precargada OK + con preguntas
+    // ✅ debe existir evaluación precargada con preguntas
     const evalData = state.evalByPosition.get(pid);
     if (!evalData?.ok || !evalData.questions?.length) return false;
 
     return true;
   }
 
+
   function refreshStartButton() {
     if (!btnStart) return;
 
-    // Siempre visible, pero deshabilitado hasta que cumpla todo
     show(btnStart);
 
-    if (isFormOk()) {
-      btnStart.disabled = false;
-      setMsg(formError, "");
-    } else {
-      btnStart.disabled = true;
-    }
+    const ok = isFormOk();
+    btnStart.disabled = !ok;
+
+    if (ok) setMsg(formError, "");
   }
+
 
   // =============================
   // Load positions
@@ -649,8 +674,6 @@ window.PUBLIC_EVAL_API_KEY =
     // Botón submit oculto al inicio
     hide(btnSubmit);
     show(btnNext);
-
-    fetch(ENDPOINT_POSITIONS, { method: "GET", headers: headers() }).catch(() => {});
 
     await loadPositions();
     refreshStartButton();
