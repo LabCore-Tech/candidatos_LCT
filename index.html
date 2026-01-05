@@ -97,7 +97,7 @@
         </div>
 
         <div class="field">
-          <label for="career">Carrera</label>
+          <label for="career">Carrera <span class="req">*</span></label>
 
           <input id="career" name="career" list="careerList"
             placeholder="Selecciona... o escribe"
@@ -113,7 +113,7 @@
         </div>
 
         <div class="field">
-          <label for="semester">Semestre</label>
+          <label for="semester">Semestre <span class="req">*</span></label>
 
           <input id="semester" name="semester" list="semesterList"
             placeholder="Selecciona... o escribe"
@@ -172,8 +172,11 @@
       <div id="questionHost"></div>
 
       <div class="examActions">
-        <button id="btnPrev" class="btn ghost" type="button">Anterior</button>
-        <button id="btnNext" class="btn ghost" type="button">Siguiente</button>
+        <!--<button id="btnPrev" class="btn ghost" type="button">Anterior</button>-->
+        <button id="btnNext" class="btn primary btn-next" type="button">
+          <span class="btn-icon">›</span>
+        </button>
+
         <button id="btnSubmit" class="btn primary" type="button">Enviar evaluación</button>
       </div>
     </section>

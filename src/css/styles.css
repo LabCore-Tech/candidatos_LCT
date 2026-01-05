@@ -531,3 +531,60 @@ body{
   #qAnswer{ max-height: none; min-height: 160px; }
   .exam-actions .btn{ min-width: 140px; width: 100%; }
 }
+
+.btn-next {
+  min-width: 260px;
+  padding: 14px 28px;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 14px;
+
+  background: linear-gradient(
+    135deg,
+    #4f46e5 0%,
+    #6366f1 50%,
+    #4338ca 100%
+  );
+
+  color: #fff;
+  border: none;
+
+  box-shadow:
+    0 10px 20px rgba(79, 70, 229, 0.35),
+    inset 0 1px 0 rgba(255,255,255,0.25);
+
+  transition: all 0.2s ease;
+}
+
+.btn-next:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 28px rgba(79, 70, 229, 0.45),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+}
+
+.btn-next:active {
+  transform: translateY(0);
+  box-shadow:
+    0 8px 16px rgba(79, 70, 229, 0.35),
+    inset 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.btn-next {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.btn-next .btn-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  opacity: 0.85;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.btn-next:hover .btn-icon {
+  transform: translateX(6px);
+  opacity: 1;
+}
