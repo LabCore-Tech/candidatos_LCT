@@ -504,16 +504,23 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
   // =============================
   const revalidate = () => refreshStartButton();
 
-  [firstName, lastName, cedula, university, career, semester, acceptPolicy]
+  [firstName, lastName, cedula, university, career, semester]
     .forEach((el) => el?.addEventListener("input", revalidate));
 
-  // ✅ Si existen en tu HTML, también revalidan sin romper nada
-  [email, phone, github, linkedin].forEach((el) => el?.addEventListener("input", revalidate));
+  [email, phone, github, linkedin]
+    .forEach((el) => el?.addEventListener("input", revalidate));
 
+  // ✅ checkbox debe ser change
+  acceptPolicy?.addEventListener("change", revalidate);
+
+  // ===== CV picker (click en el campo abre selector y muestra nombre) =====
   function updateCvPickerLabel() {
     if (!cvPicker) return;
     const f = cvFile?.files?.[0];
-    cvPicker.value = f ? f.name : "Haz clic para adjuntar tu PDF";
+    const label = f ? f.name : "Haz clic para adjuntar tu PDF";
+
+    // cvPicker en tu HTML es BUTTON, así que se actualiza con textContent
+    cvPicker.textContent = label;
   }
 
   cvPicker?.addEventListener("click", () => {
@@ -538,6 +545,7 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
     await preloadEvalForPosition(pid);
     refreshStartButton();
   });
+
 
   btnStart?.addEventListener("click", (e) => {
     e.preventDefault();
@@ -585,7 +593,6 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
 
     await loadPositions();
     refreshStartButton();
-
     updateCvPickerLabel();
 
   });
