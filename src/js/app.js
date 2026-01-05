@@ -1,255 +1,283 @@
 /* LabCore - Evaluación de ingreso (front)
-   Flujo limpio y estable
+   - Carga cargos (positions)
+   - Precarga evaluación (questions) por cargo
+   - "Iniciar prueba" visible siempre, habilitado solo si formulario OK + evaluación OK
+   - Step 1: Datos del postulante
+   - Step 2: Solo evaluación
 */
 
-// 🔐 API KEY pública
-window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98";
+// 🔐 API KEY pública para evaluación (tu valor)
+window.PUBLIC_EVAL_API_KEY =
+  window.PUBLIC_EVAL_API_KEY ||
+  "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98";
 
 (() => {
+  "use strict";
+
+  // =============================
+  // Config
+  // =============================
   const API_BASE = "https://protrack-49um.onrender.com";
   const ENDPOINT_POSITIONS = `${API_BASE}/api/gh/public/positions`;
-  const ENDPOINT_EVAL = `${API_BASE}/api/gh/public/eval`;
+  const ENDPOINT_EVAL = `${API_BASE}/api/gh/public/eval`; // ?position_id=xxx
   const ENDPOINT_SUBMIT = `${API_BASE}/api/gh/public/submit`;
 
+  const metaKey =
+    document
+      .querySelector('meta[name="PUBLIC_EVAL_API_KEY"]')
+      ?.getAttribute("content") || "";
+  const PUBLIC_KEY = String(window.PUBLIC_EVAL_API_KEY || metaKey || "").trim();
+
+  // =============================
+  // DOM
+  // =============================
   const $ = (id) => document.getElementById(id);
 
-  // ===== DOM =====
   const form = $("candidateForm");
-  const examCard = $("examCard");
-
   const firstName = $("firstName");
   const lastName = $("lastName");
   const cedula = $("cedula");
+
   const email = $("email");
   const phone = $("phone");
   const github = $("github");
   const linkedin = $("linkedin");
+
   const university = $("university");
   const career = $("career");
   const semester = $("semester");
+
   const roleSelect = $("role");
 
-  const cvFile = $("cvFile");
-  const cvPicker = $("cvPicker");
+  const cvFile = $("cvFile");     // input type=file (hidden)
+  const cvPicker = $("cvPicker"); // button (campo visible)
   const acceptPolicy = $("acceptPolicy");
 
   const btnStart = $("btnStart");
-  const btnNext = $("btnNext");
+  const formError = $("formError");
+  const uiMsg = $("uiMsg");
 
-  const qText = $("qText");
-  const qAnswer = $("qAnswer");
+  const examCard = $("examCard");
   const timerEl = $("timer");
+  const qTextEl = $("qText");
+  const qAnswerEl = $("qAnswer");
+  const btnNext = $("btnNext");
+  const examError = $("examError");
 
   const modalInfo = $("modalInfo");
   const btnContinue = $("btnContinue");
+  const modalDone = $("modalDone");
+  const modalDoneClose = $("modalDoneClose");
+  const btnDoneOk = $("btnDoneOk");
 
-  const formError = $("formError");
-  const examError = $("examError");
-
-  // ===== STATE =====
+  // =============================
+  // State
+  // =============================
   const state = {
+    evalByPosition: new Map(), // positionId -> { ok, questions, duration_minutes }
+    activePositionId: "",
     questions: [],
     answers: [],
-    index: 0,
-    remaining: 600,
-    timer: null,
+    durationSeconds: 10 * 60,
+    remaining: 10 * 60,
+    timerHandle: null,
+    examStarted: false,
   };
 
-  // ===== Utils =====
-  const show = (el) => el && el.classList.remove("hidden", "is-hidden");
-  const hide = (el) => el && el.classList.add("hidden");
+  let currentIndex = 0;
 
-  const headers = () => ({
-    Accept: "application/json",
-    "X-Api-Key": window.PUBLIC_EVAL_API_KEY,
-  });
-
-  // ===== Validación =====
-  function isFormOk() {
-    return (
-      firstName.value &&
-      lastName.value &&
-      cedula.value &&
-      email.value &&
-      phone.value &&
-      github.value &&
-      university.value &&
-      roleSelect.value &&
-      cvFile.files.length > 0 &&
-      acceptPolicy.checked
-    );
+  // =============================
+  // Utils
+  // =============================
+  function setMsg(el, msg) {
+    if (!el) return;
+    el.textContent = msg || "";
+    el.style.display = msg ? "block" : "none";
   }
 
-  function refreshStartButton() {
-    btnStart.disabled = !isFormOk();
+  function show(el) {
+    if (!el) return;
+    el.classList.remove("is-hidden", "hidden");
   }
 
-  // ===== Cargar cargos =====
-  async function loadPositions() {
-    const res = await fetch(ENDPOINT_POSITIONS, { headers: headers() });
-    const data = await res.json();
+  function hide(el) {
+    if (!el) return;
+    el.classList.add("is-hidden");
+  }
 
-    roleSelect.innerHTML = `<option value="">Selecciona un cargo</option>`;
-    data.forEach((p) => {
-      const opt = document.createElement("option");
-      opt.value = p.id || p.position_id;
-      opt.textContent = p.name || p.position_name;
-      roleSelect.appendChild(opt);
+  function headers() {
+    const h = { Accept: "application/json" };
+    if (PUBLIC_KEY) h["X-Api-Key"] = PUBLIC_KEY; // 👈 CLAVE para evitar 401
+    return h;
+  }
+
+  async function fetchJson(url) {
+    const res = await fetch(url, { method: "GET", headers: headers() });
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+
+    if (!ct.includes("application/json")) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`Respuesta no JSON (${res.status}). ${txt.slice(0, 160)}`);
+    }
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      const msg = data?.msg || data?.message || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  async function postJson(url, payload) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { ...headers(), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
+
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    let data = null;
+
+    if (ct.includes("application/json")) {
+      data = await res.json().catch(() => null);
+    } else {
+      const txt = await res.text().catch(() => "");
+      data = { ok: false, msg: txt?.slice(0, 160) || `HTTP ${res.status}` };
+    }
+
+    if (!res.ok || !data || data.ok === false) {
+      const msg = data?.msg || data?.message || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+
+    return data;
   }
 
-  // ===== Popup =====
-  function openModal() {
-    show(modalInfo);
-    modalInfo.classList.add("open");
+  function normalizeEvalResponse(data) {
+    // Soporta:
+    // A) { ok:true, questions:[...] }
+    // B) { eval:{questions:[...], duration_minutes} }
+    if (data?.ok === true) {
+      return {
+        ok: true,
+        questions: Array.isArray(data.questions) ? data.questions : [],
+        duration_minutes: 10,
+      };
+    }
+    if (data?.eval) {
+      return {
+        ok: true,
+        questions: Array.isArray(data.eval.questions) ? data.eval.questions : [],
+        duration_minutes: Number(data.eval.duration_minutes || 10),
+      };
+    }
+    return { ok: false, questions: [], duration_minutes: 10 };
   }
 
-  function closeModal() {
-    modalInfo.classList.remove("open");
-    hide(modalInfo);
+  function formatTime(sec) {
+    const s = Math.max(0, sec | 0);
+    const mm = String(Math.floor(s / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return `${mm}:${ss}`;
   }
 
-  // ===== Evaluación =====
-  async function startExam() {
-    closeModal();
-
+  function goToExamStep() {
     hide(form);
     show(examCard);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
-    const pid = roleSelect.value;
-    const res = await fetch(`${ENDPOINT_EVAL}?position_id=${pid}`, {
-      headers: headers(),
+  // =============================
+  // CV picker
+  // =============================
+  function updateCvPickerLabel() {
+    if (!cvPicker) return;
+    const f = cvFile?.files?.[0];
+    cvPicker.textContent = f ? f.name : "Haz clic para adjuntar tu PDF";
+  }
+
+  function fileToBase64NoPrefix(file) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => {
+        const res = String(fr.result || "");
+        const parts = res.split("base64,");
+        resolve(parts.length > 1 ? parts[1] : "");
+      };
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
     });
-    const data = await res.json();
-
-    state.questions = data.questions || [];
-    state.answers = new Array(state.questions.length).fill("");
-    state.index = 0;
-    state.remaining = 600;
-
-    renderQuestion();
-    startTimer();
   }
 
-  function renderQuestion() {
-    const q = state.questions[state.index];
-    if (!q) return;
+  // =============================
+  // Validation
+  // =============================
+  function isFormOk() {
+    if (!firstName?.value.trim()) return false;
+    if (!lastName?.value.trim()) return false;
+    if (!cedula?.value.trim()) return false;
 
-    qText.textContent = `${state.index + 1}. ${q.prompt || q.text}`;
-    qAnswer.value = state.answers[state.index];
-    btnNext.textContent =
-      state.index === state.questions.length - 1
-        ? "Enviar evaluación"
-        : "Siguiente";
-  }
+    const pid = roleSelect?.value ? String(roleSelect.value).trim() : "";
+    if (!pid) return false;
 
-  function startTimer() {
-    timerEl.textContent = "10:00";
-    state.timer = setInterval(() => {
-      state.remaining--;
-      const m = String(Math.floor(state.remaining / 60)).padStart(2, "0");
-      const s = String(state.remaining % 60).padStart(2, "0");
-      timerEl.textContent = `${m}:${s}`;
-      if (state.remaining <= 0) finishExam();
-    }, 1000);
-  }
+    if (!email?.value.trim()) return false;
+    if (!phone?.value.trim()) return false;
+    if (!github?.value.trim()) return false;
 
-  async function finishExam() {
-    clearInterval(state.timer);
-    alert("Evaluación enviada");
-  }
-
-  // ===== Events =====
-  [
-    firstName,
-    lastName,
-    cedula,
-    email,
-    phone,
-    github,
-    linkedin,
-    university,
-    career,
-    semester,
-  ].forEach((el) => el?.addEventListener("input", refreshStartButton));
-
-  acceptPolicy.addEventListener("change", refreshStartButton);
-
-  cvPicker.addEventListener("click", () => cvFile.click());
-  cvFile.addEventListener("change", refreshStartButton);
-
-  btnStart.addEventListener("click", (e) => {
-    e.preventDefault();
-    openModal();
-  });
-
-  btnContinue.addEventListener("click", startExam);
-
-  btnNext.addEventListener("click", () => {
-    state.answers[state.index] = qAnswer.value;
-    if (state.index < state.questions.length - 1) {
-      state.index++;
-      renderQuestion();
-    } else {
-      finishExam();
-    }
-  });
-
-  // ===== Init =====
-  document.addEventListener("DOMContentLoaded", async () => {
-    hide(examCard);
-    btnStart.disabled = true;
-    await loadPositions();
-  });
-})();
-
-    if (!email.value.trim()) return false;
-    if (!phone.value.trim()) return false;
-    if (!github.value.trim()) return false;
-
-    // ✅ VALIDACIÓN REAL DEL CV
     if (!cvFile || cvFile.files.length === 0) return false;
 
-    if (!university.value.trim()) return false;
-    if (!acceptPolicy.checked) return false;
+    if (!university?.value.trim()) return false;
+    if (!career?.value.trim()) return false;
+    if (!semester?.value.trim()) return false;
+
+    if (!acceptPolicy?.checked) return false;
+
+    // además: debe existir evaluación precargada con preguntas
+    const evalData = state.evalByPosition.get(pid);
+    if (!evalData?.ok || !evalData.questions?.length) return false;
 
     return true;
   }
 
-
   function refreshStartButton() {
     if (!btnStart) return;
-
-    // 🔒 El botón SIEMPRE visible
-    show(btnStart);
-
-    if (isFormOk()) {
-      btnStart.disabled = false;
-      setMsg(formError, "");
-    } else {
-      btnStart.disabled = true;
-    }
+    show(btnStart); // siempre visible
+    btnStart.disabled = !isFormOk();
   }
 
-
   // =============================
-  // Data load
+  // Load positions
   // =============================
   async function loadPositions() {
     setMsg(uiMsg, "Cargando cargos...");
+    setMsg(formError, "");
+
     try {
       const data = await fetchJson(ENDPOINT_POSITIONS);
-      const positions = Array.isArray(data) ? data : (data.positions || data.data || []);
-      state.positions = positions;
 
-      roleSelect.innerHTML = `<option value="" disabled selected>Selecciona un cargo</option>`;
+      // Respuestas posibles:
+      // - array directo
+      // - { positions:[...] }
+      // - { data:[...] }
+      const positions = Array.isArray(data)
+        ? data
+        : Array.isArray(data.positions)
+          ? data.positions
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
+
+      roleSelect.innerHTML =
+        `<option value="" disabled selected>Selecciona un cargo</option>`;
+
       for (const p of positions) {
         const id = String(p.position_id || p.id || "").trim();
-        const name = String(p.position_name || p.name || id);
+        const name = String(p.position_name || p.name || id || "").trim();
         if (!id) continue;
+
         const opt = document.createElement("option");
         opt.value = id;
-        opt.textContent = name;
+        opt.textContent = name || id;
         roleSelect.appendChild(opt);
       }
 
@@ -263,16 +291,18 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
   }
 
   async function preloadEvalForPosition(positionId) {
-    if (!positionId) return;
-    if (state.evalByPosition.has(positionId)) return;
+    const pid = String(positionId || "").trim();
+    if (!pid) return;
+    if (state.evalByPosition.has(pid)) return;
 
     setMsg(uiMsg, "Cargando evaluación...");
+    setMsg(formError, "");
+
     try {
-      const url = `${ENDPOINT_EVAL}?position_id=${encodeURIComponent(positionId)}`;
+      const url = `${ENDPOINT_EVAL}?position_id=${encodeURIComponent(pid)}`;
       const data = await fetchJson(url);
       const normalized = normalizeEvalResponse(data);
-
-      state.evalByPosition.set(positionId, normalized);
+      state.evalByPosition.set(pid, normalized);
 
       if (!normalized.ok) {
         setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
@@ -282,7 +312,8 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
         setMsg(formError, "");
       }
     } catch (err) {
-      setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
+      state.evalByPosition.set(pid, { ok: false, questions: [], duration_minutes: 10 });
+      setMsg(formError, `No se pudo cargar la evaluación: ${err.message}`);
     } finally {
       setMsg(uiMsg, "");
       refreshStartButton();
@@ -290,7 +321,7 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
   }
 
   // =============================
-  // Exam
+  // Exam flow
   // =============================
   function stopTimer() {
     if (state.timerHandle) clearInterval(state.timerHandle);
@@ -305,7 +336,6 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
       timerEl.textContent = formatTime(state.remaining);
       if (state.remaining <= 0) {
         stopTimer();
-        // ✅ finishExam ahora es async
         finishExam().catch(() => {});
       }
     }, 1000);
@@ -316,14 +346,12 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
   }
 
   function renderQuestion() {
-    ensureQuestionUI();
     const q = state.questions[currentIndex];
     if (!q) return;
 
     const moduleName = q.moduleName || q.module || "";
     const prompt = q.prompt || q.text || q.question || "";
 
-    // Paso 2: SOLO pregunta + respuesta
     qTextEl.textContent = moduleName
       ? `${currentIndex + 1}. ${moduleName}: ${prompt}`
       : `${currentIndex + 1}. ${prompt}`;
@@ -332,14 +360,36 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
     qAnswerEl.placeholder = "Escribe tu respuesta aquí...";
     qAnswerEl.focus();
 
-    btnNext.textContent = currentIndex === state.questions.length - 1
-      ? "Enviar evaluación"
-      : "Siguiente";
+    btnNext.textContent =
+      currentIndex === state.questions.length - 1 ? "Enviar evaluación" : "Siguiente";
 
     setMsg(examError, "");
   }
 
-  // ✅ CAMBIO: finishExam ahora envía POST y hace popup SOLO para "Límite máximo alcanzado."
+  function beginExam() {
+    const pid = String(roleSelect.value || "").trim();
+    const evalData = state.evalByPosition.get(pid);
+
+    if (!evalData?.ok || !evalData.questions?.length) {
+      setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
+      refreshStartButton();
+      return;
+    }
+
+    state.activePositionId = pid;
+    state.questions = evalData.questions;
+    state.answers = new Array(state.questions.length).fill("");
+    state.durationSeconds = Math.max(1, (evalData.duration_minutes || 10) * 60);
+    state.remaining = state.durationSeconds;
+
+    currentIndex = 0;
+    state.examStarted = true;
+
+    goToExamStep();
+    renderQuestion();
+    startTimer();
+  }
+
   async function finishExam() {
     saveCurrentAnswer();
 
@@ -351,20 +401,12 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
       return;
     }
 
-    // Backend exige estos 3 campos
-    const emailVal = email ? email.value.trim() : "";
-    const phoneVal = phone ? phone.value.trim() : "";
-    const githubVal = github ? github.value.trim() : "";
-
-    if (email && !emailVal) { setMsg(examError, "Email es obligatorio."); return; }
-    if (phone && !phoneVal) { setMsg(examError, "Celular es obligatorio."); return; }
-    if (github && !githubVal) { setMsg(examError, "GitHub es obligatorio."); return; }
-
     const file = cvFile?.files?.[0];
-    if (!file) { setMsg(examError, "Falta adjuntar el CV."); return; }
+    if (!file) {
+      setMsg(examError, "Falta adjuntar el CV.");
+      return;
+    }
 
-    // Si quieres ser estricto con PDF:
-    // (puedes comentar este if si no quieres forzar)
     if ((file.type || "").toLowerCase() !== "application/pdf") {
       setMsg(examError, "El CV debe ser PDF.");
       return;
@@ -377,10 +419,8 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
     try {
       const cvB64 = await fileToBase64NoPrefix(file);
 
-      const pid = roleSelect.value.trim();
+      const pid = String(roleSelect.value || "").trim();
 
-      // Payload EXACTO que espera tu app.py:
-      // b = { candidate, meta, questions, cv }
       const payload = {
         candidate: {
           positionId: pid,
@@ -391,11 +431,10 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
           last_name: lastName.value.trim(),
           cedula: cedula.value.trim(),
 
-          // obligatorios en backend (si existen inputs, ya validamos arriba)
-          email: emailVal,
-          phone: phoneVal,
-          github: githubVal,
-          linkedin: linkedin ? (linkedin.value.trim()) : "",
+          email: email.value.trim(),
+          phone: phone.value.trim(),
+          github: github.value.trim(),
+          linkedin: linkedin.value.trim(),
 
           university: university.value.trim(),
           career: career.value.trim(),
@@ -405,7 +444,6 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
           user_agent: navigator.userAgent,
           lang: navigator.language,
         },
-        // questions: array con pregunta + respuesta
         questions: state.questions.map((q, i) => ({
           id: q.id || q.qid || `Q${i + 1}`,
           moduleId: q.moduleId || q.module || "",
@@ -421,29 +459,21 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
       };
 
       await postJson(ENDPOINT_SUBMIT, payload);
-
       openModalDone("Evaluación enviada");
     } catch (err) {
-      const msg = err?.message || "No se pudo enviar la evaluación.";
-
-      // ✅ POPUP SOLO para este caso exacto
-      if (msg === "Límite máximo alcanzado.") {
-        openModalDone(msg);
-        return;
-      }
-
-      // otros errores: no popup
-      setMsg(examError, msg);
+      setMsg(examError, err?.message || "No se pudo enviar la evaluación.");
     } finally {
       btnNext.disabled = false;
       btnNext.textContent = originalBtnText;
     }
   }
 
+  // =============================
+  // Modals
+  // =============================
   function openModalInfo() {
     if (!modalInfo) return;
-    modalInfo.classList.remove("hidden");
-    modalInfo.classList.remove("is-hidden");
+    modalInfo.classList.remove("hidden", "is-hidden");
     modalInfo.classList.add("open");
   }
 
@@ -457,8 +487,7 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
     if (!modalDone) return;
     const t = $("modalDoneTitle");
     if (t) t.textContent = title || "Listo";
-    modalDone.classList.remove("hidden");
-    modalDone.classList.remove("is-hidden");
+    modalDone.classList.remove("hidden", "is-hidden");
     modalDone.classList.add("open");
   }
 
@@ -468,58 +497,20 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
     modalDone.classList.add("hidden");
   }
 
-  function beginExam() {
-    const pid = roleSelect.value.trim();
-    const evalData = state.evalByPosition.get(pid);
-
-    if (!evalData?.ok || !evalData.questions?.length) {
-      setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
-      refreshStartButton();
-      return;
-    }
-
-    state.activePositionId = pid;
-    state.questions = evalData.questions;
-    state.answers = new Array(state.questions.length).fill("");
-
-    state.durationSeconds = Math.max(1, (evalData.duration_minutes || 10) * 60);
-    state.remaining = state.durationSeconds;
-
-    currentIndex = 0;
-
-    goToExamStep();
-    renderQuestion();
-    startTimer();
-  }
-
   // =============================
   // Events
   // =============================
   const revalidate = () => refreshStartButton();
 
-  [firstName, lastName, cedula, university, career, semester]
-    .forEach((el) => el?.addEventListener("input", revalidate));
-
-  [email, phone, github, linkedin]
-    .forEach((el) => el?.addEventListener("input", revalidate));
-
-  // ✅ checkbox debe ser change
+  [firstName, lastName, cedula, university, career, semester].forEach((el) =>
+    el?.addEventListener("input", revalidate)
+  );
+  [email, phone, github, linkedin].forEach((el) =>
+    el?.addEventListener("input", revalidate)
+  );
   acceptPolicy?.addEventListener("change", revalidate);
 
-  // ===== CV picker (click en el campo abre selector y muestra nombre) =====
-  function updateCvPickerLabel() {
-    if (!cvPicker) return;
-    const f = cvFile?.files?.[0];
-    const label = f ? f.name : "Haz clic para adjuntar tu PDF";
-
-    // cvPicker en tu HTML es BUTTON, así que se actualiza con textContent
-    cvPicker.textContent = label;
-  }
-
-  cvPicker?.addEventListener("click", () => {
-    cvFile?.click();
-  });
-
+  cvPicker?.addEventListener("click", () => cvFile?.click());
   cvPicker?.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -533,15 +524,16 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
   });
 
   roleSelect?.addEventListener("change", async () => {
-    const pid = roleSelect.value.trim();
+    const pid = String(roleSelect.value || "").trim();
     state.activePositionId = pid;
     await preloadEvalForPosition(pid);
     refreshStartButton();
   });
 
-
   btnStart?.addEventListener("click", (e) => {
     e.preventDefault();
+    refreshStartButton();
+    if (btnStart.disabled) return;
     openModalInfo();
   });
 
@@ -550,45 +542,21 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
     beginExam();
   });
 
-  // Cerrar modal info por backdrop o X (ambos tienen data-close="1" en el HTML)
   modalInfo?.querySelectorAll('[data-close="1"]').forEach((el) => {
     el.addEventListener("click", closeModalInfo);
   });
 
-
-  // Navegación del examen
-  btnPrev?.addEventListener("click", () => {
+  btnNext?.addEventListener("click", async () => {
     if (!state.examStarted) return;
     saveCurrentAnswer();
-    if (state.currentIndex > 0) {
-      state.currentIndex -= 1;
+
+    if (currentIndex < state.questions.length - 1) {
+      currentIndex += 1;
       renderQuestion();
+      return;
     }
-  });
 
-  btnNext?.addEventListener("click", () => {
-    if (!state.examStarted) return;
-    saveCurrentAnswer();
-    if (state.currentIndex < state.questions.length - 1) {
-      state.currentIndex += 1;
-      renderQuestion();
-    }
-  });
-
-  btnSubmit?.addEventListener("click", async () => {
-    if (!state.examStarted) return;
-    saveCurrentAnswer();
     await finishExam();
-  });
-
-  // Enter en el textarea NO envía el form
-  qAnswerEl?.addEventListener("keydown", (e) => {
-    // no-op
-  });
-
-
-  qAnswerEl?.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") btnNext.click();
   });
 
   modalDoneClose?.addEventListener("click", closeModalDone);
@@ -598,16 +566,14 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
   // Init
   // =============================
   document.addEventListener("DOMContentLoaded", async () => {
-  hide(examCard);
-  show(form);
+    hide(examCard);
+    show(form);
 
-  // ✅ Botón siempre visible; solo empieza deshabilitado
-  show(btnStart);
-  btnStart.disabled = true;
+    show(btnStart);
+    btnStart.disabled = true;
 
-  await loadPositions();
-  refreshStartButton();
-  updateCvPickerLabel();
-});
-
+    updateCvPickerLabel();
+    await loadPositions();
+    refreshStartButton();
+  });
 })();
