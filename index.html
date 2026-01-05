@@ -1,186 +1,215 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>LabCore - Evaluación de ingreso</title>
+  <title>LabCore | Evaluación de ingreso</title>
 
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="src/css/styles.css" />
+  <link rel="icon" href="src/img/LabCore.webp" type="image/webp" />
 </head>
 
 <body>
+  <div class="bg"></div>
 
   <header class="topbar">
-    <div class="topbar__inner">
-      <div class="brand">
-        <img class="brand__logo" src="./assets/labcore_logo.png" alt="LabCore" />
-        <div class="brand__text">
-          <div class="brand__name">LabCore</div>
-          <div class="brand__sub">Evaluación de ingreso</div>
-        </div>
+    <div class="brand">
+      <img class="brand__logo" src="src/img/LabCore.webp" alt="LabCore" />
+      <div class="brand__txt">
+        <img class="brand__txt" src="src/img/LabCoretxt.webp" alt="LabCore" />
+        <div class="brand__sub">Evaluación de ingreso</div>
       </div>
     </div>
   </header>
 
-  <main class="page">
-
-    <!-- =======================
-         FORMULARIO (STEP 1)
-    ======================== -->
+  <main class="wrap">
+    <!-- CARD: FORM -->
     <section id="candidateForm" class="card">
-      <h1 class="card__title">Datos del postulante</h1>
-      <p class="card__subtitle">Los campos con <b>*</b> son obligatorios.</p>
+      <h1 class="title">Datos del postulante</h1>
+      <p class="subtitle">
+        <span class="muted">Los campos con <b>*</b> son obligatorios.</span>
+      </p>
 
-      <div id="formError" class="msg msg--error hidden"></div>
+      <div id="formError" class="alert alert--danger hidden" role="alert"></div>
 
-      <div class="grid">
+      <div class="formgrid">
         <div class="field">
-          <label>Nombre <span class="req">*</span></label>
-          <input id="firstName" type="text" placeholder="Escribe tu nombre" />
+          <label for="firstName">Nombre <span class="req">*</span></label>
+          <input id="firstName" type="text" placeholder="Escribe tu nombre" autocomplete="given-name" />
         </div>
 
         <div class="field">
-          <label>Apellido <span class="req">*</span></label>
-          <input id="lastName" type="text" placeholder="Escribe tu apellido" />
+          <label for="lastName">Apellido <span class="req">*</span></label>
+          <input id="lastName" type="text" placeholder="Escribe tu apellido" autocomplete="family-name" />
         </div>
 
         <div class="field">
-          <label>Cédula <span class="req">*</span></label>
-          <input id="cedula" type="text" placeholder="Solo números" inputmode="numeric" />
+          <label for="cedula">Cédula <span class="req">*</span></label>
+          <input id="cedula" type="text" inputmode="numeric" placeholder="Solo números" />
         </div>
 
         <div class="field">
-          <label>Cargo a concursar <span class="req">*</span></label>
+          <label for="role">Cargo a concursar <span class="req">*</span></label>
           <select id="role">
-            <option value="" selected>Cargando...</option>
+            <option value="">Cargando...</option>
           </select>
         </div>
 
         <div class="field">
-          <label>Correo <span class="req">*</span></label>
-          <input id="email" type="email" placeholder="tucorreo@dominio.com" />
+          <label for="email">Correo <span class="req">*</span></label>
+          <div class="input-icon">
+            <input id="email" type="email" placeholder="tucorreo@dominio.com" autocomplete="email" />
+            <span class="icon-mail" aria-hidden="true"></span>
+          </div>
         </div>
 
         <div class="field">
-          <label>Celular <span class="req">*</span></label>
-          <input id="phone" type="tel" placeholder="Ej: 3001234567" />
+          <label for="phone">Celular <span class="req">*</span></label>
+          <input id="phone" type="tel" placeholder="Ej: 3001234567" autocomplete="tel" />
         </div>
 
         <div class="field">
-          <label>GitHub <span class="req">*</span></label>
+          <label for="github">GitHub <span class="req">*</span></label>
           <input id="github" type="url" placeholder="https://github.com/tuusuario" />
         </div>
 
-        <!-- Hoja de vida: "normal", sin botón dentro del campo -->
+        <!-- CV (sin botón nativo) -->
         <div class="field">
-          <label>Hoja de vida <span class="req">*</span></label>
+          <label>Hoja de vida<span class="req">*</span></label>
 
-          <input id="cvFile" type="file" accept="application/pdf" class="hidden" />
-          <button id="cvPicker" type="button" class="file-like">
+          <input id="cvFile" class="file-hidden" type="file" accept="application/pdf" />
+          <button id="cvPicker" class="file-like" type="button">
             Haz clic para adjuntar tu PDF
+            <!-- <span class="pill">PDF</span>-->
           </button>
 
-          <div class="hint">Máx. 8 MB — Solo PDF</div>
+          <small class="help">Máx. 8 MB — Solo PDF</small>
         </div>
 
         <div class="field">
-          <label>LinkedIn</label>
+          <label for="linkedin">LinkedIn</label>
           <input id="linkedin" type="url" placeholder="https://www.linkedin.com/in/tuperfil" />
         </div>
 
         <div class="field">
-          <label>Universidad <span class="req">*</span></label>
+          <label for="university">Universidad <span class="req">*</span></label>
           <input id="university" type="text" placeholder="Escribe tu universidad" />
         </div>
 
         <div class="field">
-          <label>Carrera <span class="req">*</span></label>
-          <input id="career" type="text" placeholder="Selecciona... o escribe" />
+          <label for="career">Carrera <span class="req">*</span></label>
+
+          <input id="career" name="career" list="careerList"
+            placeholder="Selecciona... o escribe"
+            autocomplete="off" required />
+
+          <datalist id="careerList">
+          <option value="Ingeniería de Sistemas"></option>
+          <option value="Tecnología en Sistemas"></option>
+          <option value="Desarrollo de Software"></option>
+          <option value="Ingeniería de Software"></option>
+          <option value="Otra"></option>
+          </datalist>
         </div>
 
         <div class="field">
-          <label>Semestre <span class="req">*</span></label>
-          <input id="semester" type="text" placeholder="Selecciona... o escribe" />
+          <label for="semester">Semestre <span class="req">*</span></label>
+
+          <input id="semester" name="semester" list="semesterList"
+            placeholder="Selecciona... o escribe"
+            inputmode="numeric"
+            autocomplete="off" required />
+
+          <datalist id="semesterList">
+          <option value="1"></option><option value="2"></option><option value="3"></option><option value="4"></option><option value="5"></option>
+          <option value="6"></option><option value="7"></option><option value="8"></option><option value="9"></option><option value="10"></option>
+          <option value="Suspendido"></option><option value="Terminado"></option><option value="Graduado"></option>
+          </datalist>
         </div>
-      </div>
 
-      <div class="policy">
-        <label class="check">
+      <!-- Política de tratamiento -->
+      <div class="field field-policy">
+        <label class="policy-check">
           <input id="acceptPolicy" type="checkbox" />
-          <span>Acepto la <a href="#" id="openPolicy">Política de tratamiento de datos</a>.</span>
+          <span>
+            Acepto la
+            <a
+              href="politica-datos.html"
+              id="openPolicy"
+              onclick="window.open('politica-datos.html','politica','width=980,height=720,scrollbars=yes,resizable=yes'); return false;"
+            >
+              Política de tratamiento de datos.
+            </a>
+          </span>
         </label>
-      </div>
 
-      <div class="actions actions--center">
-        <button id="btnStart" class="btn primary" disabled>Iniciar prueba</button>
+        <div class="actions">
+          <button id="btnStart" class="btn primary" disabled>
+            Iniciar prueba
+          </button>
+
+        </div>
       </div>
     </section>
 
-    <!-- =======================
-         EXAMEN (STEP 2)
-    ======================== -->
+    <!-- CARD: EXAM -->
     <section id="examCard" class="card hidden">
-      <div class="examHead">
-        <h2 class="card__title">Evaluación</h2>
+      <div class="examTop">
+        <h2 class="title-sm">Evaluación</h2>
 
-        <!-- ✅ Timer visible -->
-        <div id="timerBox" class="timer">
+        <div id="timerBox" class="timer hidden">
           <div class="timer__label">Tiempo</div>
           <div id="timer" class="timer__value">10:00</div>
         </div>
       </div>
 
-      <!-- ✅ Incidentes NO deben verse -->
-      <div class="examMeta hidden">
-        Incidentes: <b id="incidents">0</b>
+      <div class="examMeta">
+        <div>Incidentes: <b id="incidents">0</b></div>
       </div>
 
-      <div id="examError" class="msg msg--error hidden"></div>
+      <div id="examError" class="alert alert--danger hidden" role="alert"></div>
 
       <div id="questionHost"></div>
 
-      <!-- ✅ Solo se verá uno a la vez (JS) -->
       <div class="examActions">
+        <!--<button id="btnPrev" class="btn ghost" type="button">Anterior</button>-->
         <button id="btnNext" class="btn primary btn-next" type="button">
           <span class="btn-icon">›</span>
         </button>
 
-        <button id="btnSubmit" class="btn primary hidden" type="button">
-          Enviar evaluación
-        </button>
+        <button id="btnSubmit" class="btn primary" type="button">Enviar evaluación</button>
       </div>
     </section>
-
   </main>
 
-  <!-- MODAL INFO -->
-  <div id="modalInfo" class="modal hidden">
+  <!-- MODAL: Antes de iniciar (sin Cancelar) -->
+  <div id="modalInfo" class="modal hidden" aria-hidden="true">
     <div class="modal__backdrop" data-close="1"></div>
-    <div class="modal__panel">
-      <button class="modal__x" data-close="1" type="button">×</button>
-      <h3 class="modal__title">Antes de iniciar</h3>
+    <div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="miTitle">
+      <button class="modal__x" type="button" data-close="1" aria-label="Cerrar">×</button>
+      <h3 id="miTitle" class="modal__title">Antes de iniciar</h3>
       <p class="modal__text">
-        La evaluación dura 10 minutos. Una vez inicie, no cierres la pestaña.
+        La evaluación dura 10 minutos. Una vez inicie, no cierres la pestaña. Gracias. Tu información quedará registrada.
       </p>
-      <div class="modal__actions actions--center">
+      <div class="modal__actions">
         <button id="btnContinue" class="btn primary" type="button">Continuar</button>
       </div>
     </div>
   </div>
 
-  <!-- MODAL RESULT -->
-  <div id="modalResult" class="modal hidden">
+  <!-- MODAL: Resultado -->
+  <div id="modalResult" class="modal hidden" aria-hidden="true">
     <div class="modal__backdrop" data-close="1"></div>
-    <div class="modal__panel">
-      <button class="modal__x" data-close="1" type="button">×</button>
-      <h3 class="modal__title">Listo</h3>
+    <div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="mrTitle">
+      <button class="modal__x" type="button" data-close="1" aria-label="Cerrar">×</button>
+      <h3 id="mrTitle" class="modal__title">Listo</h3>
       <p id="mrMsg" class="modal__text">Evaluación enviada.</p>
-      <div class="modal__actions actions--center">
-        <button class="btn primary" data-close="1" type="button">OK</button>
+      <div class="modal__actions">
+        <button class="btn primary" type="button" data-close="1">OK</button>
       </div>
     </div>
   </div>
 
-  <script src="./app.js"></script>
+  <script src="src/js/app.js"></script>
 </body>
 </html>
