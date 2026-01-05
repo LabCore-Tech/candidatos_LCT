@@ -1,9 +1,4 @@
 /* LabCore - Evaluación de ingreso (front)
-   - Carga cargos (positions)
-   - Precarga evaluación (questions) por cargo
-   - Botón "Iniciar prueba" deshabilitado hasta que el formulario esté OK + evaluación OK
-   - Step 1: Datos del postulante
-   - Step 2: Solo evaluación (pregunta + respuesta)
 */
 
 // 🔐 API KEY pública para evaluación
@@ -21,6 +16,9 @@ window.PUBLIC_EVAL_API_KEY =
   const ENDPOINT_POSITIONS = `${API_BASE}/api/gh/public/positions`;
   const ENDPOINT_EVAL = `${API_BASE}/api/gh/public/eval`; // ?position_id=xxx
   const ENDPOINT_SUBMIT = `${API_BASE}/api/gh/public/submit`;
+
+  // ✅ cantidad de preguntas = cantidad de módulos (siempre 8)
+  const TARGET_MODULES = 8;
 
   // Si existe meta, también se puede tomar de ahí
   const metaKey =
@@ -81,7 +79,7 @@ window.PUBLIC_EVAL_API_KEY =
   // State
   // =============================
   const state = {
-    evalByPosition: new Map(), // positionId -> { ok, questions, duration_minutes }
+    evalByPosition: new Map(), // positionId -> { ok, questions, duration_minutes, raw }
     questions: [],
     answers: [],
     durationSeconds: 10 * 60,
@@ -94,8 +92,11 @@ window.PUBLIC_EVAL_API_KEY =
     // Incidencias (NO se muestran)
     incidents: {
       total: 0,
-      byQuestion: {}, // index -> {copy,paste,cut,blur,screenshot}
+      byQuestion: {},
     },
+
+    // ✅ para trazabilidad (sin mostrar al candidato)
+    orderSeed: null,
   };
 
   let currentIndex = 0;
@@ -146,9 +147,71 @@ window.PUBLIC_EVAL_API_KEY =
     const slot = state.incidents.byQuestion[String(currentIndex)];
     if (slot && slot[type] !== undefined) slot[type]++;
 
-    // Si existe #incidents en el HTML lo actualiza, pero normalmente estará oculto
     const el = document.getElementById("incidents");
     if (el) el.textContent = String(state.incidents.total);
+  }
+
+  // =============================
+  // Random helpers
+  // =============================
+  function randomSeed() {
+    // no crypto para compatibilidad + suficiente
+    return (
+      Date.now().toString(36) +
+      Math.random().toString(36).slice(2) +
+      Math.random().toString(36).slice(2)
+    );
+  }
+
+  function shuffleInPlace(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function pickOne(arr) {
+    if (!Array.isArray(arr) || arr.length === 0) return null;
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  // ✅ arma exactamente 1 pregunta por módulo y baraja el orden final
+  function buildRandomExamFromModules(modules) {
+    // modules: [{moduleId, moduleName, questions:[{id,prompt/text...}]}]
+    const selected = [];
+
+    const usable = (Array.isArray(modules) ? modules : [])
+      .map((m) => ({
+        moduleId: String(m?.moduleId || m?.id || m?.code || "").trim(),
+        moduleName: String(m?.moduleName || m?.name || "").trim(),
+        questions: Array.isArray(m?.questions) ? m.questions : [],
+      }))
+      .filter((m) => m.moduleId && m.questions.length > 0);
+
+    // baraja módulos primero para que el orden cambie SIEMPRE
+    shuffleInPlace(usable);
+
+    // toma 1 por módulo hasta llegar a 8
+    for (const m of usable) {
+      if (selected.length >= TARGET_MODULES) break;
+
+      const q = pickOne(m.questions);
+      if (!q) continue;
+
+      selected.push({
+        id: q?.id || q?.qid || "",
+        moduleId: m.moduleId,
+        // moduleName NO se muestra, pero se guarda en payload si quieres
+        moduleName: m.moduleName,
+        prompt: q?.prompt || q?.text || q?.question || "",
+      });
+    }
+
+    // baraja preguntas seleccionadas para que nunca sea “módulo 1..8”
+    shuffleInPlace(selected);
+
+    return selected;
   }
 
   // =============================
@@ -161,7 +224,7 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   // =============================
-  // Render WAKE (evita "Cargando..." eterno cuando Render está dormido)
+  // Render WAKE
   // =============================
   async function wakeRender() {
     try {
@@ -171,9 +234,7 @@ window.PUBLIC_EVAL_API_KEY =
         cache: "no-store",
         keepalive: true,
       });
-    } catch (_) {
-      // objetivo: "tocar" el servicio, no mostrar error
-    }
+    } catch (_) {}
   }
 
   async function sleep(ms) {
@@ -236,52 +297,57 @@ window.PUBLIC_EVAL_API_KEY =
     return data;
   }
 
+  // =============================
+  // Eval normalization
+  // =============================
   function normalizeEvalResponse(data) {
-    // A) { ok:true, questions:[...] }
-    if (data?.ok === true && Array.isArray(data.questions)) {
+    // Queremos módulos para poder seleccionar 1 por módulo.
+    // Soporta:
+    // C) { ok:true, modules:[{id,name,questions:[{id,text}]}...] } ✅ ideal
+    // B) { ok:true, eval:{questions:[...] } } (sin módulos) -> fallback
+    // A) { ok:true, questions:[...] } (sin módulos) -> fallback
+
+    if (data?.ok === true && Array.isArray(data.modules)) {
+      // normaliza módulos y preguntas
+      const modules = data.modules.map((m) => ({
+        moduleId: String(m?.id || m?.moduleId || m?.code || "").trim(),
+        moduleName: String(m?.name || m?.moduleName || "").trim(),
+        questions: (Array.isArray(m?.questions) ? m.questions : []).map((q) => ({
+          id: q?.id || q?.qid || "",
+          prompt: q?.text || q?.prompt || q?.question || "",
+        })),
+      }));
+
       return {
         ok: true,
-        questions: data.questions,
+        modules,
         duration_minutes: Number(data.duration_minutes || 10),
         raw: data,
       };
     }
 
-    // B) { ok:true, eval:{questions:[...]} }
+    // fallback sin módulos (no ideal para tu requisito)
     if (data?.eval && Array.isArray(data.eval.questions)) {
       return {
         ok: true,
+        modules: [],
         questions: data.eval.questions,
         duration_minutes: Number(data.eval.duration_minutes || 10),
         raw: data,
       };
     }
 
-    // C) { ok:true, modules:[{id,name,questions:[{id,text}]}...] }
-    if (data?.ok === true && Array.isArray(data.modules)) {
-      const flat = [];
-      for (const m of data.modules) {
-        const moduleId = String(m?.id || m?.moduleId || m?.code || "").trim();
-        const moduleName = String(m?.name || m?.moduleName || "").trim();
-        const qs = Array.isArray(m?.questions) ? m.questions : [];
-        for (const q of qs) {
-          flat.push({
-            id: q?.id || q?.qid || "",
-            moduleId,
-            moduleName,
-            prompt: q?.text || q?.prompt || q?.question || "",
-          });
-        }
-      }
+    if (data?.ok === true && Array.isArray(data.questions)) {
       return {
         ok: true,
-        questions: flat,
+        modules: [],
+        questions: data.questions,
         duration_minutes: Number(data.duration_minutes || 10),
         raw: data,
       };
     }
 
-    return { ok: false, questions: [], duration_minutes: 10, raw: data };
+    return { ok: false, modules: [], questions: [], duration_minutes: 10, raw: data };
   }
 
   // =============================
@@ -332,21 +398,30 @@ window.PUBLIC_EVAL_API_KEY =
     if (!phone?.value.trim()) return false;
     if (!github?.value.trim()) return false;
 
-    // CV obligatorio
     if (!cvFile || cvFile.files.length === 0) return false;
 
-    // Universidad/Carrera/Semestre obligatorios
     if (!university?.value.trim()) return false;
     if (!career?.value.trim()) return false;
     if (!semester?.value.trim()) return false;
 
     if (!acceptPolicy?.checked) return false;
 
-    // Evaluación precargada con preguntas
     const evalData = state.evalByPosition.get(pid);
-    if (!evalData?.ok || !evalData.questions?.length) return false;
+    if (!evalData?.ok) return false;
 
-    return true;
+    // ✅ Debe haber 8 módulos con preguntas
+    if (Array.isArray(evalData.modules) && evalData.modules.length > 0) {
+      const usableModules = evalData.modules.filter(
+        (m) => m.moduleId && Array.isArray(m.questions) && m.questions.length > 0
+      );
+      if (usableModules.length < TARGET_MODULES) return false;
+      return true;
+    }
+
+    // fallback (si backend no manda módulos)
+    if (Array.isArray(evalData.questions) && evalData.questions.length >= TARGET_MODULES) return true;
+
+    return false;
   }
 
   function refreshStartButton() {
@@ -359,7 +434,6 @@ window.PUBLIC_EVAL_API_KEY =
   function isAnswerValid(text) {
     const t = String(text || "").trim();
     if (t.length < 2) return false;
-    // solo símbolos / puntos / guiones
     if (/^[\.\,\;\:\-\_\s·•]+$/.test(t)) return false;
     return true;
   }
@@ -409,11 +483,29 @@ window.PUBLIC_EVAL_API_KEY =
 
       if (!normalized.ok) {
         setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
-      } else if (!normalized.questions?.length) {
-        setMsg(formError, "La evaluación existe, pero no tiene preguntas.");
+      } else {
+        // ✅ valida que haya 8 módulos con preguntas
+        if (Array.isArray(normalized.modules) && normalized.modules.length > 0) {
+          const usable = normalized.modules.filter(
+            (m) => m.moduleId && Array.isArray(m.questions) && m.questions.length > 0
+          );
+
+          if (usable.length < TARGET_MODULES) {
+            setMsg(
+              formError,
+              `La evaluación debe tener ${TARGET_MODULES} módulos con preguntas. Actualmente hay ${usable.length}.`
+            );
+          }
+        } else {
+          // fallback
+          const count = Array.isArray(normalized.questions) ? normalized.questions.length : 0;
+          if (count < TARGET_MODULES) {
+            setMsg(formError, `La evaluación debe tener mínimo ${TARGET_MODULES} preguntas.`);
+          }
+        }
       }
     } catch (err) {
-      state.evalByPosition.set(pid, { ok: false, questions: [], duration_minutes: 10 });
+      state.evalByPosition.set(pid, { ok: false, modules: [], questions: [], duration_minutes: 10 });
       setMsg(formError, `No se pudo cargar la evaluación: ${err.message}`);
     } finally {
       refreshStartButton();
@@ -435,7 +527,6 @@ window.PUBLIC_EVAL_API_KEY =
       </div>
     `.trim();
 
-    // Bloquear pegar SOLO en textarea
     const ta = questionHost.querySelector("#qAnswer");
     if (ta) {
       ta.addEventListener("paste", (e) => {
@@ -543,12 +634,9 @@ window.PUBLIC_EVAL_API_KEY =
     const qTextEl = questionHost.querySelector("#qText");
     const qAnswerEl = questionHost.querySelector("#qAnswer");
 
-    const moduleName = q.moduleName || q.module || "";
+    // ✅ NO mostrar módulo. Solo numeración + prompt.
     const prompt = q.prompt || q.text || q.question || "";
-
-    const text = moduleName
-      ? `${currentIndex + 1}. ${moduleName}: ${prompt}`
-      : `${currentIndex + 1}. ${prompt}`;
+    const text = `${currentIndex + 1}. ${prompt}`;
 
     if (qTextEl) qTextEl.textContent = text;
 
@@ -558,7 +646,6 @@ window.PUBLIC_EVAL_API_KEY =
       qAnswerEl.focus();
     }
 
-    // Botones: SOLO 1 visible (centrado)
     const last = currentIndex === state.questions.length - 1;
     if (last) {
       hide(btnNext);
@@ -575,13 +662,46 @@ window.PUBLIC_EVAL_API_KEY =
     const pid = String(roleSelect.value || "").trim();
     const evalData = state.evalByPosition.get(pid);
 
-    if (!evalData?.ok || !evalData.questions?.length) {
+    if (!evalData?.ok) {
       setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
       refreshStartButton();
       return;
     }
 
-    state.questions = evalData.questions;
+    // ✅ Selección aleatoria: 1 pregunta por módulo (8)
+    let selectedQuestions = [];
+
+    if (Array.isArray(evalData.modules) && evalData.modules.length > 0) {
+      selectedQuestions = buildRandomExamFromModules(evalData.modules);
+
+      if (selectedQuestions.length < TARGET_MODULES) {
+        setMsg(
+          formError,
+          `No hay suficientes módulos/preguntas para generar ${TARGET_MODULES} preguntas.`
+        );
+        refreshStartButton();
+        return;
+      }
+    } else {
+      // fallback: si backend no manda módulos, tomamos 8 aleatorias
+      const pool = Array.isArray(evalData.questions) ? [...evalData.questions] : [];
+      if (pool.length < TARGET_MODULES) {
+        setMsg(formError, `La evaluación debe tener mínimo ${TARGET_MODULES} preguntas.`);
+        refreshStartButton();
+        return;
+      }
+      shuffleInPlace(pool);
+      selectedQuestions = pool.slice(0, TARGET_MODULES).map((q) => ({
+        id: q?.id || q?.qid || "",
+        moduleId: q?.moduleId || "",
+        moduleName: q?.moduleName || "",
+        prompt: q?.prompt || q?.text || q?.question || "",
+      }));
+      shuffleInPlace(selectedQuestions);
+    }
+
+    state.orderSeed = randomSeed(); // solo para trazabilidad si la quieres guardar
+    state.questions = selectedQuestions;
     state.answers = new Array(state.questions.length).fill("");
 
     state.durationSeconds = Math.max(60, (evalData.duration_minutes || 10) * 60);
@@ -592,7 +712,6 @@ window.PUBLIC_EVAL_API_KEY =
 
     goToExamStep();
 
-    // Asegura botones iniciales
     show(btnNext);
     hide(btnSubmit);
 
@@ -660,12 +779,16 @@ window.PUBLIC_EVAL_API_KEY =
         meta: {
           user_agent: navigator.userAgent,
           lang: navigator.language,
+          order_seed: state.orderSeed, // ✅ trazabilidad del orden
         },
+        // ✅ solo 8 preguntas (1 por módulo)
         questions: state.questions.map((q, i) => ({
-          id: q.id || q.qid || `Q${i + 1}`,
-          moduleId: q.moduleId || q.module || "",
+          id: q.id || `Q${i + 1}`,
+          moduleId: q.moduleId || "",
+          // moduleName se envía si quieres para tu análisis interno,
+          // pero el candidato NUNCA lo ve.
           moduleName: q.moduleName || "",
-          prompt: q.prompt || q.text || q.question || "",
+          prompt: q.prompt || "",
           answer: (state.answers[i] || "").trim(),
         })),
         cv: {
@@ -817,13 +940,11 @@ window.PUBLIC_EVAL_API_KEY =
     });
   });
 
-  // Bloquear click derecho (evita copiar)
   document.addEventListener("contextmenu", (e) => {
     if (!state.examStarted) return;
     e.preventDefault();
   });
 
-  // Cambiar de pestaña / salir de foco
   window.addEventListener("blur", () => {
     if (!state.examStarted) return;
     registerIncident("blur");
@@ -834,12 +955,9 @@ window.PUBLIC_EVAL_API_KEY =
     if (document.visibilityState === "hidden") registerIncident("blur");
   });
 
-  // Intento de captura: PrintScreen (no es 100% fiable, pero suma control)
   document.addEventListener("keydown", (e) => {
     if (!state.examStarted) return;
-    if (e.key === "PrintScreen") {
-      registerIncident("screenshot");
-    }
+    if (e.key === "PrintScreen") registerIncident("screenshot");
   });
 
   // =============================
@@ -872,7 +990,6 @@ window.PUBLIC_EVAL_API_KEY =
     refreshStartButton();
   });
 
-  // Si vuelven a la pestaña, “toca” el servicio por si se duerme
   document.addEventListener("visibilitychange", async () => {
     if (document.visibilityState === "visible") await wakeRender();
   });
