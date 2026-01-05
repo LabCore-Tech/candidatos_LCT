@@ -3,41 +3,36 @@
    - Precarga evaluación (questions) por cargo
    - Habilita "Iniciar prueba" SOLO cuando el formulario es válido + hay preguntas
    - Step 1: Datos del postulante
-   - Step 2: Evaluación limpia (solo pregunta + textarea), con timer
+   - Step 2: Solo pregunta + textarea de respuesta (responsive)
 */
-
-// 🔐 API KEY pública para evaluación (Front)
-window.PUBLIC_EVAL_API_KEY =
-  "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98";
 
 (() => {
   // =============================
   // Config
   // =============================
   const API_BASE = "https://protrack-49um.onrender.com";
-
+  
   const ENDPOINT_POSITIONS = `${API_BASE}/api/gh/public/positions`;
   const ENDPOINT_EVAL = `${API_BASE}/api/gh/public/eval`; // ?position_id=xxx
   const ENDPOINT_SUBMIT = `${API_BASE}/api/gh/public/submit`;
 
-  const metaKey =
-    document
-      .querySelector('meta[name="PUBLIC_EVAL_API_KEY"]')
-      ?.getAttribute("content") || "";
 
+  // Si existe <meta name="PUBLIC_EVAL_API_KEY" content="..."> lo toma de ahí
+  const metaKey =
+    document.querySelector('meta[name="PUBLIC_EVAL_API_KEY"]')?.getAttribute("content") || "";
   const PUBLIC_KEY = window.PUBLIC_EVAL_API_KEY || metaKey || "";
 
-  // =============================
+    // =============================
   // DOM
   // =============================
   const $ = (id) => document.getElementById(id);
 
   const form = $("candidateForm");
-
   const firstName = $("firstName");
   const lastName = $("lastName");
   const cedula = $("cedula");
 
+  // ✅ (Opcionales: si existen en tu HTML, se usan. Si no existen, NO rompe)
   const email = $("email");
   const phone = $("phone");
   const github = $("github");
@@ -47,10 +42,7 @@ window.PUBLIC_EVAL_API_KEY =
   const career = $("career");
   const semester = $("semester");
   const roleSelect = $("role");
-
   const cvFile = $("cvFile");
-  const cvPicker = $("cvPicker");
-
   const acceptPolicy = $("acceptPolicy");
 
   const btnStart = $("btnStart");
@@ -61,33 +53,34 @@ window.PUBLIC_EVAL_API_KEY =
   const timerEl = $("timer");
   const qTextEl = $("qText");
   const qAnswerEl = $("qAnswer");
-
-  const btnPrev = $("btnPrev");
   const btnNext = $("btnNext");
-  const btnSubmit = $("btnSubmit");
-
   const examError = $("examError");
 
+  // Modales (si existen)
   const modalInfo = $("modalInfo");
-  const btnContinue = $("btnContinue");
+  const modalInfoClose = $("modalInfoClose");
+  const btnCancelStart = $("btnCancelStart");
+  const btnAcceptStart = $("btnAcceptStart");
 
-  const modalResult = $("modalResult");
+  const modalDone = $("modalDone");
+  const modalDoneClose = $("modalDoneClose");
+  const btnDoneOk = $("btnDoneOk");
 
   // =============================
   // State
   // =============================
   const state = {
     positions: [],
-    evalByPosition: new Map(),
+    evalByPosition: new Map(), // position_id -> normalized eval
     activePositionId: "",
     questions: [],
     answers: [],
     durationSeconds: 10 * 60,
     remaining: 10 * 60,
     timerHandle: null,
-    examStarted: false,
-    currentIndex: 0,
   };
+
+  let currentIndex = 0;
 
   // =============================
   // Utils
@@ -98,21 +91,12 @@ window.PUBLIC_EVAL_API_KEY =
     el.style.display = msg ? "block" : "none";
   }
 
-  function show(el) {
-    if (!el) return;
-    el.classList.remove("is-hidden");
-    el.classList.remove("hidden");
-  }
-
-  function hide(el) {
-    if (!el) return;
-    el.classList.add("is-hidden");
-    el.classList.add("hidden");
-  }
+  function show(el) { el?.classList.remove("is-hidden"); }
+  function hide(el) { el?.classList.add("is-hidden"); }
 
   function headers() {
     const h = { Accept: "application/json" };
-    if (PUBLIC_KEY) h["X-API-Key"] = PUBLIC_KEY;
+    if (PUBLIC_KEY) h["X-Api-Key"] = PUBLIC_KEY;
     return h;
   }
 
@@ -133,6 +117,7 @@ window.PUBLIC_EVAL_API_KEY =
     return data;
   }
 
+  // ✅ NUEVO: POST JSON para enviar evaluación
   async function postJson(url, payload) {
     const res = await fetch(url, {
       method: "POST",
@@ -160,6 +145,7 @@ window.PUBLIC_EVAL_API_KEY =
     return data;
   }
 
+  // ✅ NUEVO: convierte archivo PDF a base64 (sin prefijo data:)
   function fileToBase64NoPrefix(file) {
     return new Promise((resolve, reject) => {
       const fr = new FileReader();
@@ -174,6 +160,9 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   function normalizeEvalResponse(data) {
+    // Soporta:
+    // A) { ok:true, position:{...}, qb:{...}, questions:[...] }
+    // B) { eval:{questions:[...], duration_minutes, title}, position:{...}, qb:{...} }
     if (data?.ok === true) {
       return {
         ok: true,
@@ -206,43 +195,52 @@ window.PUBLIC_EVAL_API_KEY =
     return `${mm}:${ss}`;
   }
 
+  // =============================
+  // Step control
+  // =============================
   function goToExamStep() {
-    hide(form);
-    show(examCard);
+    hide(form);        // Paso 1 fuera
+    show(examCard);    // Paso 2 solo evaluación
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function updateCvPickerLabel() {
-    if (!cvPicker) return;
-    const f = cvFile?.files?.[0];
-    cvPicker.textContent = f ? f.name : "Haz clic para adjuntar tu PDF";
   }
 
   // =============================
   // Validation
   // =============================
   function isFormOk() {
-    if (!firstName?.value?.trim()) return false;
-    if (!lastName?.value?.trim()) return false;
-    if (!cedula?.value?.trim()) return false;
-    if (!roleSelect?.value) return false;
+    if (!firstName.value.trim()) return false;
+    if (!lastName.value.trim()) return false;
+    if (!cedula.value.trim()) return false;
 
-    if (!email?.value?.trim()) return false;
-    if (!phone?.value?.trim()) return false;
-    if (!github?.value?.trim()) return false;
+    // ✅ Si estos inputs existen en tu HTML, se vuelven obligatorios (backend los exige)
+    if (email && !email.value.trim()) return false;
+    if (phone && !phone.value.trim()) return false;
+    if (github && !github.value.trim()) return false;
 
-    if (!cvFile || cvFile.files.length === 0) return false;
+    if (!university.value.trim()) return false;
+    if (!career.value.trim()) return false;
+    if (!semester.value.trim()) return false;
+    if (!roleSelect.value.trim()) return false;
+    if (!cvFile.files || cvFile.files.length === 0) return false;
+    if (!acceptPolicy.checked) return false;
 
-    if (!university?.value?.trim()) return false;
-    if (!acceptPolicy?.checked) return false;
+    const pid = roleSelect.value.trim();
+    const evalData = state.evalByPosition.get(pid);
+    if (!evalData?.ok) return false;
+    if (!Array.isArray(evalData.questions) || evalData.questions.length === 0) return false;
 
     return true;
   }
 
   function refreshStartButton() {
-    if (!btnStart) return;
-    show(btnStart);
-    btnStart.disabled = !isFormOk();
+    if (isFormOk()) {
+      btnStart.disabled = false;
+      show(btnStart);            // requisito: solo aparece cuando todo OK
+      setMsg(formError, "");
+    } else {
+      btnStart.disabled = true;
+      hide(btnStart);
+    }
   }
 
   // =============================
@@ -252,22 +250,14 @@ window.PUBLIC_EVAL_API_KEY =
     setMsg(uiMsg, "Cargando cargos...");
     try {
       const data = await fetchJson(ENDPOINT_POSITIONS);
-
-      // ✅ soporta {ok:true, positions:[...]} y también array directo
-      const positions = Array.isArray(data)
-        ? data
-        : data.positions || data.items || data.data || [];
-
+      const positions = Array.isArray(data) ? data : (data.positions || data.data || []);
       state.positions = positions;
 
-      roleSelect.innerHTML =
-        `<option value="" disabled selected>Selecciona un cargo</option>`;
-
+      roleSelect.innerHTML = `<option value="" disabled selected>Selecciona un cargo</option>`;
       for (const p of positions) {
         const id = String(p.position_id || p.id || "").trim();
-        const name = String(p.position_name || p.name || id).trim();
+        const name = String(p.position_name || p.name || id);
         if (!id) continue;
-
         const opt = document.createElement("option");
         opt.value = id;
         opt.textContent = name;
@@ -289,18 +279,19 @@ window.PUBLIC_EVAL_API_KEY =
 
     setMsg(uiMsg, "Cargando evaluación...");
     try {
-      const url = `${ENDPOINT_EVAL}?position_id=${encodeURIComponent(
-        positionId
-      )}`;
+      const url = `${ENDPOINT_EVAL}?position_id=${encodeURIComponent(positionId)}`;
       const data = await fetchJson(url);
       const normalized = normalizeEvalResponse(data);
 
       state.evalByPosition.set(positionId, normalized);
 
-      if (!normalized.ok) setMsg(formError, "No se pudo cargar la evaluación.");
-      else if (!normalized.questions?.length)
-        setMsg(formError, "La evaluación no tiene preguntas.");
-      else setMsg(formError, "");
+      if (!normalized.ok) {
+        setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
+      } else if (!normalized.questions?.length) {
+        setMsg(formError, "La evaluación existe, pero no tiene preguntas.");
+      } else {
+        setMsg(formError, "");
+      }
     } catch (err) {
       setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
     } finally {
@@ -319,84 +310,87 @@ window.PUBLIC_EVAL_API_KEY =
 
   function startTimer() {
     stopTimer();
-    if (timerEl) timerEl.textContent = formatTime(state.remaining);
-
+    timerEl.textContent = formatTime(state.remaining);
     state.timerHandle = setInterval(() => {
       state.remaining -= 1;
-      if (timerEl) timerEl.textContent = formatTime(state.remaining);
-
+      timerEl.textContent = formatTime(state.remaining);
       if (state.remaining <= 0) {
         stopTimer();
+        // ✅ finishExam ahora es async
         finishExam().catch(() => {});
       }
     }, 1000);
   }
 
   function saveCurrentAnswer() {
-    if (!qAnswerEl) return;
-    state.answers[state.currentIndex] = (qAnswerEl.value || "").trim();
+    state.answers[currentIndex] = (qAnswerEl.value || "").trim();
   }
 
   function renderQuestion() {
-    const q = state.questions[state.currentIndex];
+    const q = state.questions[currentIndex];
     if (!q) return;
 
     const moduleName = q.moduleName || q.module || "";
     const prompt = q.prompt || q.text || q.question || "";
 
-    if (qTextEl) {
-      qTextEl.textContent = moduleName
-        ? `${state.currentIndex + 1}. ${moduleName}: ${prompt}`
-        : `${state.currentIndex + 1}. ${prompt}`;
-    }
+    // Paso 2: SOLO pregunta + respuesta
+    qTextEl.textContent = moduleName
+      ? `${currentIndex + 1}. ${moduleName}: ${prompt}`
+      : `${currentIndex + 1}. ${prompt}`;
 
-    if (qAnswerEl) {
-      qAnswerEl.value = state.answers[state.currentIndex] || "";
-      qAnswerEl.placeholder = "Escribe tu respuesta aquí...";
-      qAnswerEl.focus();
-    }
+    qAnswerEl.value = state.answers[currentIndex] || "";
+    qAnswerEl.placeholder = "Escribe tu respuesta aquí...";
+    qAnswerEl.focus();
 
-    const last = state.currentIndex === state.questions.length - 1;
-
-    if (btnPrev) btnPrev.disabled = state.currentIndex === 0;
-    if (btnNext) btnNext.style.display = last ? "none" : "inline-flex";
-    if (btnSubmit) btnSubmit.style.display = last ? "inline-flex" : "none";
+    btnNext.textContent = currentIndex === state.questions.length - 1
+      ? "Enviar evaluación"
+      : "Siguiente";
 
     setMsg(examError, "");
   }
 
+  // ✅ CAMBIO: finishExam ahora envía POST y hace popup SOLO para "Límite máximo alcanzado."
   async function finishExam() {
     saveCurrentAnswer();
 
     const empty = state.answers.findIndex((a) => !a || !a.trim());
     if (empty !== -1) {
-      state.currentIndex = empty;
+      currentIndex = empty;
       renderQuestion();
       setMsg(examError, `Falta responder la pregunta ${empty + 1}.`);
       return;
     }
 
-    const file = cvFile?.files?.[0];
-    if (!file) {
-      setMsg(examError, "Falta adjuntar el CV.");
-      return;
-    }
+    // Backend exige estos 3 campos
+    const emailVal = email ? email.value.trim() : "";
+    const phoneVal = phone ? phone.value.trim() : "";
+    const githubVal = github ? github.value.trim() : "";
 
+    if (email && !emailVal) { setMsg(examError, "Email es obligatorio."); return; }
+    if (phone && !phoneVal) { setMsg(examError, "Celular es obligatorio."); return; }
+    if (github && !githubVal) { setMsg(examError, "GitHub es obligatorio."); return; }
+
+    const file = cvFile?.files?.[0];
+    if (!file) { setMsg(examError, "Falta adjuntar el CV."); return; }
+
+    // Si quieres ser estricto con PDF:
+    // (puedes comentar este if si no quieres forzar)
     if ((file.type || "").toLowerCase() !== "application/pdf") {
       setMsg(examError, "El CV debe ser PDF.");
       return;
     }
 
-    const originalSubmitText = btnSubmit?.textContent || "Enviar evaluación";
-    if (btnSubmit) {
-      btnSubmit.disabled = true;
-      btnSubmit.textContent = "Enviando...";
-    }
+    btnNext.disabled = true;
+    const originalBtnText = btnNext.textContent;
+    btnNext.textContent = "Enviando...";
 
     try {
       const cvB64 = await fileToBase64NoPrefix(file);
+
       const pid = roleSelect.value.trim();
 
+      // Payload EXACTO que espera tu app.py:
+      // b = { candidate, meta, questions, cv }
       const payload = {
         candidate: {
           positionId: pid,
@@ -407,19 +401,21 @@ window.PUBLIC_EVAL_API_KEY =
           last_name: lastName.value.trim(),
           cedula: cedula.value.trim(),
 
-          email: email.value.trim(),
-          phone: phone.value.trim(),
-          github: github.value.trim(),
-          linkedin: linkedin ? linkedin.value.trim() : "",
+          // obligatorios en backend (si existen inputs, ya validamos arriba)
+          email: emailVal,
+          phone: phoneVal,
+          github: githubVal,
+          linkedin: linkedin ? (linkedin.value.trim()) : "",
 
           university: university.value.trim(),
-          career: career ? career.value.trim() : "",
-          semester: semester ? semester.value.trim() : "",
+          career: career.value.trim(),
+          semester: semester.value.trim(),
         },
         meta: {
           user_agent: navigator.userAgent,
           lang: navigator.language,
         },
+        // questions: array con pregunta + respuesta
         questions: state.questions.map((q, i) => ({
           id: q.id || q.qid || `Q${i + 1}`,
           moduleId: q.moduleId || q.module || "",
@@ -436,99 +432,37 @@ window.PUBLIC_EVAL_API_KEY =
 
       await postJson(ENDPOINT_SUBMIT, payload);
 
-      openModalResult("Listo", "Evaluación enviada.");
+      openModalDone("Evaluación enviada");
     } catch (err) {
-      setMsg(examError, err?.message || "No se pudo enviar la evaluación.");
-    } finally {
-      if (btnSubmit) {
-        btnSubmit.disabled = false;
-        btnSubmit.textContent = originalSubmitText;
+      const msg = err?.message || "No se pudo enviar la evaluación.";
+
+      // ✅ POPUP SOLO para este caso exacto
+      if (msg === "Límite máximo alcanzado.") {
+        openModalDone(msg);
+        return;
       }
+
+      // otros errores: no popup
+      setMsg(examError, msg);
+    } finally {
+      btnNext.disabled = false;
+      btnNext.textContent = originalBtnText;
     }
   }
 
-  // =============================
-  // Modals
-  // =============================
-  function openModalInfo() {
-    if (!modalInfo) return;
-    modalInfo.classList.remove("hidden", "is-hidden");
-    modalInfo.classList.add("open");
-  }
+  function openModalInfo() { modalInfo?.classList.add("open"); }
+  function closeModalInfo() { modalInfo?.classList.remove("open"); }
 
-  function closeModalInfo() {
-    if (!modalInfo) return;
-    modalInfo.classList.remove("open");
-    modalInfo.classList.add("hidden");
-  }
-
-  function openModalResult(title, msg) {
-    if (!modalResult) return;
-
-    const t = $("mrTitle");
-    const m = $("mrMsg");
-
-    if (t) t.textContent = title || "Listo";
-    if (m) m.textContent = msg || "";
-
-    modalResult.classList.remove("hidden", "is-hidden");
-    modalResult.classList.add("open");
-  }
-
-  function closeModalResult() {
-    if (!modalResult) return;
-    modalResult.classList.remove("open");
-    modalResult.classList.add("hidden");
-  }
-
-  // =============================
-  // Events
-  // =============================
-  const revalidate = () => refreshStartButton();
-
-  [
-    firstName,
-    lastName,
-    cedula,
-    email,
-    phone,
-    github,
-    linkedin,
-    university,
-    career,
-    semester,
-  ].forEach((el) => el?.addEventListener("input", revalidate));
-
-  acceptPolicy?.addEventListener("change", revalidate);
-
-  roleSelect?.addEventListener("change", async () => {
-    const pid = roleSelect.value.trim();
-    state.activePositionId = pid;
-    await preloadEvalForPosition(pid);
-    refreshStartButton();
-  });
-
-  cvPicker?.addEventListener("click", () => cvFile?.click());
-  cvPicker?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      cvFile?.click();
+  function openModalDone(title) {
+    if (modalDone) {
+      const t = $("modalDoneTitle");
+      if (t) t.textContent = title || "Listo";
+      modalDone.classList.add("open");
     }
-  });
+  }
+  function closeModalDone() { modalDone?.classList.remove("open"); }
 
-  cvFile?.addEventListener("change", () => {
-    updateCvPickerLabel();
-    refreshStartButton();
-  });
-
-  btnStart?.addEventListener("click", (e) => {
-    e.preventDefault();
-    openModalInfo();
-  });
-
-  btnContinue?.addEventListener("click", () => {
-    closeModalInfo();
-    // inicia examen
+  function beginExam() {
     const pid = roleSelect.value.trim();
     const evalData = state.evalByPosition.get(pid);
 
@@ -538,61 +472,73 @@ window.PUBLIC_EVAL_API_KEY =
       return;
     }
 
-    state.examStarted = true;
     state.activePositionId = pid;
     state.questions = evalData.questions;
     state.answers = new Array(state.questions.length).fill("");
 
     state.durationSeconds = Math.max(1, (evalData.duration_minutes || 10) * 60);
     state.remaining = state.durationSeconds;
-    state.currentIndex = 0;
+
+    currentIndex = 0;
 
     goToExamStep();
     renderQuestion();
     startTimer();
+  }
+
+  // =============================
+  // Events
+  // =============================
+  const revalidate = () => refreshStartButton();
+
+  [firstName, lastName, cedula, university, career, semester, acceptPolicy]
+    .forEach((el) => el?.addEventListener("input", revalidate));
+
+  // ✅ Si existen en tu HTML, también revalidan sin romper nada
+  [email, phone, github, linkedin].forEach((el) => el?.addEventListener("input", revalidate));
+
+  cvFile?.addEventListener("change", revalidate);
+
+  roleSelect?.addEventListener("change", async () => {
+    const pid = roleSelect.value.trim();
+    state.activePositionId = pid;
+    await preloadEvalForPosition(pid);
+    refreshStartButton();
   });
 
-  modalInfo?.querySelectorAll('[data-close="1"]').forEach((el) => {
-    el.addEventListener("click", closeModalInfo);
+  btnStart?.addEventListener("click", (e) => {
+    e.preventDefault();
+    openModalInfo();
   });
 
-  btnPrev?.addEventListener("click", () => {
-    if (!state.examStarted) return;
-    saveCurrentAnswer();
-    if (state.currentIndex > 0) {
-      state.currentIndex -= 1;
-      renderQuestion();
-    }
+  btnAcceptStart?.addEventListener("click", () => {
+    closeModalInfo();
+    beginExam();
   });
+
+  btnCancelStart?.addEventListener("click", closeModalInfo);
+  modalInfoClose?.addEventListener("click", closeModalInfo);
 
   btnNext?.addEventListener("click", (e) => {
     e.preventDefault();
-    if (!state.examStarted) return;
     saveCurrentAnswer();
-    if (state.currentIndex < state.questions.length - 1) {
-      state.currentIndex += 1;
-      renderQuestion();
-    }
-  });
 
-  btnSubmit?.addEventListener("click", async (e) => {
-    e.preventDefault();
-    if (!state.examStarted) return;
-    await finishExam();
+    if (currentIndex < state.questions.length - 1) {
+      currentIndex += 1;
+      renderQuestion();
+      return;
+    }
+
+    // ✅ finishExam ahora es async
+    finishExam().catch(() => {});
   });
 
   qAnswerEl?.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      e.preventDefault();
-      const last = state.currentIndex === state.questions.length - 1;
-      if (last) btnSubmit?.click();
-      else btnNext?.click();
-    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") btnNext.click();
   });
 
-  modalResult?.querySelectorAll('[data-close="1"]').forEach((el) => {
-    el.addEventListener("click", closeModalResult);
-  });
+  modalDoneClose?.addEventListener("click", closeModalDone);
+  btnDoneOk?.addEventListener("click", closeModalDone);
 
   // =============================
   // Init
@@ -601,10 +547,8 @@ window.PUBLIC_EVAL_API_KEY =
     hide(examCard);
     show(form);
 
-    show(btnStart);
+    hide(btnStart);
     btnStart.disabled = true;
-
-    updateCvPickerLabel();
 
     await loadPositions();
     refreshStartButton();
