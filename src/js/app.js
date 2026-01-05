@@ -1,7 +1,12 @@
 /* LabCore - Evaluación de ingreso (front)
+   - Carga cargos (positions)
+   - Precarga evaluación (questions) por cargo
+   - Botón "Iniciar prueba" deshabilitado hasta que el formulario esté OK + evaluación OK
+   - Step 1: Datos del postulante
+   - Step 2: Solo evaluación (pregunta + respuesta)
 */
 
-// 🔐 API KEY pública para evaluación
+// 🔐 API KEY pública para evaluación (se puede sobreescribir por <meta name="PUBLIC_EVAL_API_KEY" ...>)
 window.PUBLIC_EVAL_API_KEY =
   window.PUBLIC_EVAL_API_KEY ||
   "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98";
@@ -16,9 +21,6 @@ window.PUBLIC_EVAL_API_KEY =
   const ENDPOINT_POSITIONS = `${API_BASE}/api/gh/public/positions`;
   const ENDPOINT_EVAL = `${API_BASE}/api/gh/public/eval`; // ?position_id=xxx
   const ENDPOINT_SUBMIT = `${API_BASE}/api/gh/public/submit`;
-
-  // ✅ cantidad de preguntas = cantidad de módulos (siempre 8)
-  const TARGET_MODULES = 8;
 
   // Si existe meta, también se puede tomar de ahí
   const metaKey =
@@ -55,15 +57,16 @@ window.PUBLIC_EVAL_API_KEY =
 
   const btnStart = $("btnStart");
   const formError = $("formError");
+  const serviceInfo = $("serviceInfo");
 
   const examCard = $("examCard");
   const timerBox = $("timerBox");
   const timerEl = $("timer");
-  const timerLabel = $("timerLabel");
-  const timerHint = $("timerHint");
+  const timeHint = $("timeHint");
   const examError = $("examError");
 
   const questionHost = $("questionHost");
+  const btnPrev = $("btnPrev");     // se mantiene en DOM (hidden por HTML)
   const btnNext = $("btnNext");
   const btnSubmit = $("btnSubmit");
 
@@ -79,24 +82,19 @@ window.PUBLIC_EVAL_API_KEY =
   // State
   // =============================
   const state = {
-    evalByPosition: new Map(), // positionId -> { ok, questions, duration_minutes, raw }
+    evalByPosition: new Map(),
     questions: [],
     answers: [],
     durationSeconds: 10 * 60,
     remaining: 10 * 60,
     timerHandle: null,
     examStarted: false,
-    warning3mFired: false,
-    warning1mFired: false,
+    timedOut: false,
 
-    // Incidencias (NO se muestran)
     incidents: {
       total: 0,
-      byQuestion: {},
-    },
-
-    // ✅ para trazabilidad (sin mostrar al candidato)
-    orderSeed: null,
+      byQuestion: {}
+    }
   };
 
   let currentIndex = 0;
@@ -124,98 +122,33 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   // =============================
-  // Incidents (silent)
+  // Incidents (NO se muestran al candidato)
   // =============================
   function ensureIncidentSlot(index) {
-    const k = String(index);
-    if (!state.incidents.byQuestion[k]) {
-      state.incidents.byQuestion[k] = {
+    if (!state.incidents.byQuestion[index]) {
+      state.incidents.byQuestion[index] = {
         copy: 0,
         paste: 0,
         cut: 0,
         blur: 0,
-        screenshot: 0,
+        screenshot: 0
       };
     }
   }
 
   function registerIncident(type) {
-    if (!state.examStarted) return;
     state.incidents.total++;
     ensureIncidentSlot(currentIndex);
-
-    const slot = state.incidents.byQuestion[String(currentIndex)];
-    if (slot && slot[type] !== undefined) slot[type]++;
-
+    if (state.incidents.byQuestion[currentIndex][type] !== undefined) {
+      state.incidents.byQuestion[currentIndex][type]++;
+    }
+    // contador oculto en UI
     const el = document.getElementById("incidents");
     if (el) el.textContent = String(state.incidents.total);
   }
 
   // =============================
-  // Random helpers
-  // =============================
-  function randomSeed() {
-    // no crypto para compatibilidad + suficiente
-    return (
-      Date.now().toString(36) +
-      Math.random().toString(36).slice(2) +
-      Math.random().toString(36).slice(2)
-    );
-  }
-
-  function shuffleInPlace(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
-  }
-
-  function pickOne(arr) {
-    if (!Array.isArray(arr) || arr.length === 0) return null;
-    return arr[Math.floor(Math.random() * arr.length)];
-  }
-
-  // ✅ arma exactamente 1 pregunta por módulo y baraja el orden final
-  function buildRandomExamFromModules(modules) {
-    // modules: [{moduleId, moduleName, questions:[{id,prompt/text...}]}]
-    const selected = [];
-
-    const usable = (Array.isArray(modules) ? modules : [])
-      .map((m) => ({
-        moduleId: String(m?.moduleId || m?.id || m?.code || "").trim(),
-        moduleName: String(m?.moduleName || m?.name || "").trim(),
-        questions: Array.isArray(m?.questions) ? m.questions : [],
-      }))
-      .filter((m) => m.moduleId && m.questions.length > 0);
-
-    // baraja módulos primero para que el orden cambie SIEMPRE
-    shuffleInPlace(usable);
-
-    // toma 1 por módulo hasta llegar a 8
-    for (const m of usable) {
-      if (selected.length >= TARGET_MODULES) break;
-
-      const q = pickOne(m.questions);
-      if (!q) continue;
-
-      selected.push({
-        id: q?.id || q?.qid || "",
-        moduleId: m.moduleId,
-        // moduleName NO se muestra, pero se guarda en payload si quieres
-        moduleName: m.moduleName,
-        prompt: q?.prompt || q?.text || q?.question || "",
-      });
-    }
-
-    // baraja preguntas seleccionadas para que nunca sea “módulo 1..8”
-    shuffleInPlace(selected);
-
-    return selected;
-  }
-
-  // =============================
-  // HTTP
+  // HTTP + Retry + Warmup (Render sleep)
   // =============================
   function headers() {
     const h = { Accept: "application/json" };
@@ -223,36 +156,32 @@ window.PUBLIC_EVAL_API_KEY =
     return h;
   }
 
-  // =============================
-  // Render WAKE
-  // =============================
-  async function wakeRender() {
-    try {
-      await fetch(ENDPOINT_POSITIONS, {
-        method: "GET",
-        headers: headers(),
-        cache: "no-store",
-        keepalive: true,
-      });
-    } catch (_) {}
-  }
-
   async function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
   }
 
-  async function withRetry(fn, tries = 7) {
+  async function withRetry(fn, tries = 12) {
     let lastErr = null;
     for (let i = 0; i < tries; i++) {
       try {
         return await fn();
       } catch (e) {
         lastErr = e;
-        const wait = i === 0 ? 600 : Math.min(8000, 900 * Math.pow(2, i - 1));
+        const wait = i === 0 ? 600 : Math.min(12000, 900 * Math.pow(1.55, i));
         await sleep(wait);
       }
     }
     throw lastErr || new Error("No se pudo completar la operación.");
+  }
+
+  async function warmUpService() {
+    // Dispara requests "opacos" (no-cors) para despertar Render sin bloquear por CORS
+    try {
+      await fetch(API_BASE, { method: "GET", mode: "no-cors", cache: "no-store" });
+    } catch (_) {}
+    try {
+      await fetch(ENDPOINT_POSITIONS, { method: "GET", mode: "no-cors", cache: "no-store" });
+    } catch (_) {}
   }
 
   async function fetchJson(url) {
@@ -286,68 +215,100 @@ window.PUBLIC_EVAL_API_KEY =
       data = await res.json().catch(() => null);
     } else {
       const txt = await res.text().catch(() => "");
-      data = { ok: false, msg: txt?.slice(0, 160) || `HTTP ${res.status}` };
+      data = { ok: false, msg: txt?.slice(0, 220) || `HTTP ${res.status}` };
     }
 
     if (!res.ok || !data || data.ok === false) {
-      const msg = data?.msg || data?.message || `HTTP ${res.status}`;
-      throw new Error(msg);
+      const code = String(data?.code || data?.error_code || "").trim();
+      const msg = String(data?.msg || data?.message || `HTTP ${res.status}`).trim();
+      const err = new Error(msg || "Error");
+      err.code = code;
+      err.raw = data;
+      throw err;
     }
 
     return data;
   }
 
   // =============================
-  // Eval normalization
+  // Normalización evaluación + selección aleatoria (8 módulos)
   // =============================
   function normalizeEvalResponse(data) {
-    // Queremos módulos para poder seleccionar 1 por módulo.
-    // Soporta:
-    // C) { ok:true, modules:[{id,name,questions:[{id,text}]}...] } ✅ ideal
-    // B) { ok:true, eval:{questions:[...] } } (sin módulos) -> fallback
-    // A) { ok:true, questions:[...] } (sin módulos) -> fallback
-
-    if (data?.ok === true && Array.isArray(data.modules)) {
-      // normaliza módulos y preguntas
-      const modules = data.modules.map((m) => ({
-        moduleId: String(m?.id || m?.moduleId || m?.code || "").trim(),
-        moduleName: String(m?.name || m?.moduleName || "").trim(),
-        questions: (Array.isArray(m?.questions) ? m.questions : []).map((q) => ({
-          id: q?.id || q?.qid || "",
-          prompt: q?.text || q?.prompt || q?.question || "",
-        })),
-      }));
-
-      return {
-        ok: true,
-        modules,
-        duration_minutes: Number(data.duration_minutes || 10),
-        raw: data,
-      };
-    }
-
-    // fallback sin módulos (no ideal para tu requisito)
-    if (data?.eval && Array.isArray(data.eval.questions)) {
-      return {
-        ok: true,
-        modules: [],
-        questions: data.eval.questions,
-        duration_minutes: Number(data.eval.duration_minutes || 10),
-        raw: data,
-      };
-    }
-
     if (data?.ok === true && Array.isArray(data.questions)) {
       return {
         ok: true,
-        modules: [],
         questions: data.questions,
         duration_minutes: Number(data.duration_minutes || 10),
         raw: data,
       };
     }
 
-    return { ok: false, modules: [], questions: [], duration_minutes: 10, raw: data };
+    if (data?.eval && Array.isArray(data.eval.questions)) {
+      return {
+        ok: true,
+        questions: data.eval.questions,
+        duration_minutes: Number(data.eval.duration_minutes || 10),
+        raw: data,
+      };
+    }
+
+    if (data?.ok === true && Array.isArray(data.modules)) {
+      const flat = [];
+      for (const m of data.modules) {
+        const moduleId = String(m?.id || m?.moduleId || m?.code || "").trim();
+        const moduleName = String(m?.name || m?.moduleName || "").trim();
+        const qs = Array.isArray(m?.questions) ? m.questions : [];
+        for (const q of qs) {
+          flat.push({
+            id: q?.id || q?.qid || "",
+            moduleId,
+            moduleName,
+            prompt: q?.text || q?.prompt || q?.question || "",
+          });
+        }
+      }
+      return {
+        ok: true,
+        questions: flat,
+        duration_minutes: Number(data.duration_minutes || 10),
+        raw: data,
+      };
+    }
+
+    return { ok: false, questions: [], duration_minutes: 10, raw: data };
+  }
+
+  function shuffleInPlace(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function pickOnePerModule(flatQuestions) {
+    const by = new Map();
+    for (const q of flatQuestions || []) {
+      const mid = String(q?.moduleId || q?.module || "M0");
+      if (!by.has(mid)) by.set(mid, []);
+      by.get(mid).push(q);
+    }
+
+    const picked = [];
+    for (const [mid, list] of by.entries()) {
+      if (!list.length) continue;
+      const idx = Math.floor(Math.random() * list.length);
+      const q = list[idx];
+      picked.push({
+        id: q.id || "",
+        moduleId: q.moduleId || mid,
+        moduleName: q.moduleName || "",
+        prompt: String(q.prompt || q.text || q.question || "").trim(),
+      });
+    }
+
+    shuffleInPlace(picked);
+    return picked;
   }
 
   // =============================
@@ -357,7 +318,6 @@ window.PUBLIC_EVAL_API_KEY =
     if (!cvPicker) return;
     const f = cvFile?.files?.[0];
     cvPicker.textContent = f ? f.name : "Haz clic para adjuntar tu PDF";
-    cvPicker.classList.toggle("has-file", !!f);
   }
 
   function fileToBase64NoPrefix(file) {
@@ -407,21 +367,9 @@ window.PUBLIC_EVAL_API_KEY =
     if (!acceptPolicy?.checked) return false;
 
     const evalData = state.evalByPosition.get(pid);
-    if (!evalData?.ok) return false;
+    if (!evalData?.ok || !evalData.questions?.length) return false;
 
-    // ✅ Debe haber 8 módulos con preguntas
-    if (Array.isArray(evalData.modules) && evalData.modules.length > 0) {
-      const usableModules = evalData.modules.filter(
-        (m) => m.moduleId && Array.isArray(m.questions) && m.questions.length > 0
-      );
-      if (usableModules.length < TARGET_MODULES) return false;
-      return true;
-    }
-
-    // fallback (si backend no manda módulos)
-    if (Array.isArray(evalData.questions) && evalData.questions.length >= TARGET_MODULES) return true;
-
-    return false;
+    return true;
   }
 
   function refreshStartButton() {
@@ -431,15 +379,22 @@ window.PUBLIC_EVAL_API_KEY =
     if (ok) setMsg(formError, "");
   }
 
-  function isAnswerValid(text) {
-    const t = String(text || "").trim();
-    if (t.length < 2) return false;
-    if (/^[\.\,\;\:\-\_\s·•]+$/.test(t)) return false;
+  function normalizeText(s) {
+    return String(s || "").replace(/\s+/g, " ").trim();
+  }
+
+  function isValidAnswer(txt) {
+    const s = normalizeText(txt);
+    if (!s) return false;
+    if (/^[\.\,\-\_\:\;\!\?\(\)\[\]\{\}\s]+$/.test(s)) return false;
+    const letters = (s.match(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g) || []).length;
+    if (letters < 6) return false;
+    if (s.length < 20) return false;
     return true;
   }
 
   // =============================
-  // Load positions + eval
+  // Load positions + preload eval
   // =============================
   async function loadPositions() {
     setMsg(formError, "");
@@ -450,10 +405,10 @@ window.PUBLIC_EVAL_API_KEY =
     const positions = Array.isArray(data)
       ? data
       : Array.isArray(data.positions)
-        ? data.positions
-        : Array.isArray(data.data)
-          ? data.data
-          : [];
+      ? data.positions
+      : Array.isArray(data.data)
+      ? data.data
+      : [];
 
     roleSelect.innerHTML = `<option value="" disabled selected>Selecciona un cargo</option>`;
 
@@ -471,41 +426,26 @@ window.PUBLIC_EVAL_API_KEY =
   async function preloadEvalForPosition(positionId) {
     const pid = String(positionId || "").trim();
     if (!pid) return;
-    if (state.evalByPosition.has(pid)) return;
 
     setMsg(formError, "");
-
     try {
       const url = `${ENDPOINT_EVAL}?position_id=${encodeURIComponent(pid)}`;
       const data = await fetchJson(url);
       const normalized = normalizeEvalResponse(data);
+
+      // ✅ 8 módulos: escoger 1 pregunta por módulo (aleatorio)
+      const selected = pickOnePerModule(normalized.questions || []);
+      normalized.questions = selected;
+
       state.evalByPosition.set(pid, normalized);
 
       if (!normalized.ok) {
         setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
-      } else {
-        // ✅ valida que haya 8 módulos con preguntas
-        if (Array.isArray(normalized.modules) && normalized.modules.length > 0) {
-          const usable = normalized.modules.filter(
-            (m) => m.moduleId && Array.isArray(m.questions) && m.questions.length > 0
-          );
-
-          if (usable.length < TARGET_MODULES) {
-            setMsg(
-              formError,
-              `La evaluación debe tener ${TARGET_MODULES} módulos con preguntas. Actualmente hay ${usable.length}.`
-            );
-          }
-        } else {
-          // fallback
-          const count = Array.isArray(normalized.questions) ? normalized.questions.length : 0;
-          if (count < TARGET_MODULES) {
-            setMsg(formError, `La evaluación debe tener mínimo ${TARGET_MODULES} preguntas.`);
-          }
-        }
+      } else if (!normalized.questions?.length) {
+        setMsg(formError, "La evaluación existe, pero no tiene preguntas.");
       }
     } catch (err) {
-      state.evalByPosition.set(pid, { ok: false, modules: [], questions: [], duration_minutes: 10 });
+      state.evalByPosition.set(pid, { ok: false, questions: [], duration_minutes: 10 });
       setMsg(formError, `No se pudo cargar la evaluación: ${err.message}`);
     } finally {
       refreshStartButton();
@@ -517,31 +457,14 @@ window.PUBLIC_EVAL_API_KEY =
   // =============================
   function ensureQuestionUI() {
     if (!questionHost) return;
-
     if (questionHost.querySelector("#qText") && questionHost.querySelector("#qAnswer")) return;
 
     questionHost.innerHTML = `
-      <div class="qcard">
-        <div id="qText" class="qtitle"></div>
-        <textarea id="qAnswer" class="input textarea" rows="6" autocomplete="off" spellcheck="false"></textarea>
+      <div class="question">
+        <div id="qText" class="question__text"></div>
+        <textarea id="qAnswer" class="input textarea" rows="6"></textarea>
       </div>
     `.trim();
-
-    const ta = questionHost.querySelector("#qAnswer");
-    if (ta) {
-      ta.addEventListener("paste", (e) => {
-        e.preventDefault();
-        registerIncident("paste");
-      });
-      ta.addEventListener("copy", (e) => {
-        e.preventDefault();
-        registerIncident("copy");
-      });
-      ta.addEventListener("cut", (e) => {
-        e.preventDefault();
-        registerIncident("cut");
-      });
-    }
   }
 
   function formatTime(sec) {
@@ -556,60 +479,49 @@ window.PUBLIC_EVAL_API_KEY =
     state.timerHandle = null;
   }
 
-  function applyTimerVisuals() {
-    if (!timerBox) return;
-    timerBox.classList.remove("timer--warn", "timer--danger", "timer--pulse");
+  function updateTimerUI() {
+    if (timerEl) timerEl.textContent = formatTime(state.remaining);
 
-    if (state.remaining <= 60) {
-      timerBox.classList.add("timer--danger", "timer--pulse");
-    } else if (state.remaining <= 180) {
-      timerBox.classList.add("timer--warn", "timer--pulse");
-    }
-  }
-
-  function maybeFireWarnings() {
-    if (state.remaining === 180 && !state.warning3mFired) {
-      state.warning3mFired = true;
-      if (timerHint) {
-        timerHint.textContent = "⚠ Quedan 3 minutos";
-        show(timerHint);
+    if (timerBox) {
+      const timerWrap = timerBox.querySelector(".timer");
+      if (timerWrap) {
+        timerWrap.classList.remove("is-warn", "is-danger");
+        if (state.remaining <= 180 && state.remaining > 60) timerWrap.classList.add("is-warn");
+        if (state.remaining <= 60) timerWrap.classList.add("is-danger");
       }
     }
-    if (state.remaining === 60 && !state.warning1mFired) {
-      state.warning1mFired = true;
-      if (timerHint) {
-        timerHint.textContent = "⏳ Queda 1 minuto";
-        show(timerHint);
+
+    if (timeHint) {
+      if (state.remaining === 180) {
+        timeHint.classList.remove("hidden");
+        timeHint.classList.remove("is-danger");
+        timeHint.textContent = "Quedan 3 minutos.";
+      } else if (state.remaining === 60) {
+        timeHint.classList.remove("hidden");
+        timeHint.classList.add("is-danger");
+        timeHint.textContent = "Queda 1 minuto.";
+      } else if (state.remaining === 0) {
+        timeHint.classList.remove("hidden");
+        timeHint.classList.add("is-danger");
+        timeHint.textContent = "Tiempo finalizado.";
       }
-    }
-    if (state.remaining === 0) {
-      if (timerHint) hide(timerHint);
     }
   }
 
   function startTimer() {
     stopTimer();
+    state.timedOut = false;
     if (timerBox) show(timerBox);
+    updateTimerUI();
 
-    if (timerLabel) timerLabel.textContent = "Tiempo";
-    if (timerEl) timerEl.textContent = formatTime(state.remaining);
-    if (timerHint) hide(timerHint);
-
-    state.warning3mFired = false;
-    state.warning1mFired = false;
-
-    applyTimerVisuals();
-
-    state.timerHandle = setInterval(() => {
+    state.timerHandle = setInterval(async () => {
       state.remaining -= 1;
-      if (timerEl) timerEl.textContent = formatTime(state.remaining);
-
-      applyTimerVisuals();
-      maybeFireWarnings();
+      updateTimerUI();
 
       if (state.remaining <= 0) {
         stopTimer();
-        finishExam({ dueToTimeout: true }).catch(() => {});
+        state.timedOut = true;
+        await finishExam(true).catch(() => {});
       }
     }, 1000);
   }
@@ -622,32 +534,29 @@ window.PUBLIC_EVAL_API_KEY =
 
   function saveCurrentAnswer() {
     const ta = questionHost?.querySelector("#qAnswer");
-    state.answers[currentIndex] = String(ta?.value || "").trim();
+    state.answers[currentIndex] = String(ta?.value || "");
   }
 
   function renderQuestion() {
     ensureQuestionUI();
-
     const q = state.questions[currentIndex];
     if (!q) return;
 
-    const qTextEl = questionHost.querySelector("#qText");
-    const qAnswerEl = questionHost.querySelector("#qAnswer");
+    const qTextEl2 = questionHost.querySelector("#qText");
+    const qAnswerEl2 = questionHost.querySelector("#qAnswer");
 
-    // ✅ NO mostrar módulo. Solo numeración + prompt.
-    const prompt = q.prompt || q.text || q.question || "";
-    const text = `${currentIndex + 1}. ${prompt}`;
+    qAnswerEl2.onpaste = (e) => { e.preventDefault(); registerIncident("paste"); };
+    qAnswerEl2.oncopy  = (e) => { e.preventDefault(); registerIncident("copy"); };
+    qAnswerEl2.oncut   = (e) => { e.preventDefault(); registerIncident("cut"); };
 
-    if (qTextEl) qTextEl.textContent = text;
+    const prompt = String(q.prompt || q.text || q.question || "").trim();
+    qTextEl2.textContent = `${currentIndex + 1} de ${state.questions.length}. ${prompt}`;
 
-    if (qAnswerEl) {
-      qAnswerEl.value = state.answers[currentIndex] || "";
-      qAnswerEl.placeholder = "Escribe tu respuesta aquí...";
-      qAnswerEl.focus();
-    }
+    qAnswerEl2.value = state.answers[currentIndex] || "";
+    qAnswerEl2.placeholder = "Escribe tu respuesta aquí...";
+    qAnswerEl2.focus();
 
-    const last = currentIndex === state.questions.length - 1;
-    if (last) {
+    if (currentIndex === state.questions.length - 1) {
       hide(btnNext);
       show(btnSubmit);
     } else {
@@ -662,81 +571,67 @@ window.PUBLIC_EVAL_API_KEY =
     const pid = String(roleSelect.value || "").trim();
     const evalData = state.evalByPosition.get(pid);
 
-    if (!evalData?.ok) {
+    if (!evalData?.ok || !evalData.questions?.length) {
       setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
       refreshStartButton();
       return;
     }
 
-    // ✅ Selección aleatoria: 1 pregunta por módulo (8)
-    let selectedQuestions = [];
-
-    if (Array.isArray(evalData.modules) && evalData.modules.length > 0) {
-      selectedQuestions = buildRandomExamFromModules(evalData.modules);
-
-      if (selectedQuestions.length < TARGET_MODULES) {
-        setMsg(
-          formError,
-          `No hay suficientes módulos/preguntas para generar ${TARGET_MODULES} preguntas.`
-        );
-        refreshStartButton();
-        return;
-      }
-    } else {
-      // fallback: si backend no manda módulos, tomamos 8 aleatorias
-      const pool = Array.isArray(evalData.questions) ? [...evalData.questions] : [];
-      if (pool.length < TARGET_MODULES) {
-        setMsg(formError, `La evaluación debe tener mínimo ${TARGET_MODULES} preguntas.`);
-        refreshStartButton();
-        return;
-      }
-      shuffleInPlace(pool);
-      selectedQuestions = pool.slice(0, TARGET_MODULES).map((q) => ({
-        id: q?.id || q?.qid || "",
-        moduleId: q?.moduleId || "",
-        moduleName: q?.moduleName || "",
-        prompt: q?.prompt || q?.text || q?.question || "",
-      }));
-      shuffleInPlace(selectedQuestions);
-    }
-
-    state.orderSeed = randomSeed(); // solo para trazabilidad si la quieres guardar
-    state.questions = selectedQuestions;
+    state.questions = Array.isArray(evalData.questions) ? evalData.questions.slice(0) : [];
     state.answers = new Array(state.questions.length).fill("");
 
-    state.durationSeconds = Math.max(60, (evalData.duration_minutes || 10) * 60);
+    state.durationSeconds = Math.max(1, Number(evalData.duration_minutes || 10) * 60);
     state.remaining = state.durationSeconds;
 
     currentIndex = 0;
     state.examStarted = true;
 
     goToExamStep();
-
-    show(btnNext);
-    hide(btnSubmit);
-
     renderQuestion();
     startTimer();
   }
 
-  async function finishExam({ dueToTimeout = false } = {}) {
+  function openModalInfo() {
+    if (!modalInfo) return;
+    modalInfo.classList.remove("hidden", "is-hidden");
+    modalInfo.classList.add("open");
+  }
+
+  function closeModalInfo() {
+    if (!modalInfo) return;
+    modalInfo.classList.remove("open");
+    modalInfo.classList.add("hidden");
+  }
+
+  function openModalResult(msg) {
+    if (mrMsg) mrMsg.textContent = msg || "";
+    if (!modalResult) return;
+    modalResult.classList.remove("hidden", "is-hidden");
+    modalResult.classList.add("open");
+  }
+
+  function closeModalResult() {
+    if (!modalResult) return;
+    modalResult.classList.remove("open");
+    modalResult.classList.add("hidden");
+  }
+
+  async function finishExam(force = false) {
     saveCurrentAnswer();
 
-    const emptyIdx = state.answers.findIndex((a) => !isAnswerValid(a));
-    if (emptyIdx !== -1) {
-      if (dueToTimeout) {
-        setMsg(examError, "Se agotó el tiempo.");
-        state.examStarted = false;
-        stopTimer();
-        if (btnNext) btnNext.disabled = true;
-        if (btnSubmit) btnSubmit.disabled = true;
+    if (!force && !isValidAnswer(state.answers[currentIndex])) {
+      setMsg(examError, "Responde de forma completa antes de continuar.");
+      return;
+    }
+
+    if (!force) {
+      const empty = state.answers.findIndex((a) => !isValidAnswer(a));
+      if (empty !== -1) {
+        currentIndex = empty;
+        renderQuestion();
+        setMsg(examError, `Falta responder correctamente la pregunta ${empty + 1}.`);
         return;
       }
-
-      currentIndex = emptyIdx;
-      renderQuestion();
-      setMsg(examError, `Debes responder la pregunta ${emptyIdx + 1} antes de continuar.`);
-      return;
     }
 
     const file = cvFile?.files?.[0];
@@ -749,9 +644,9 @@ window.PUBLIC_EVAL_API_KEY =
       return;
     }
 
-    if (btnSubmit) btnSubmit.disabled = true;
-    const originalText = btnSubmit?.textContent || "Enviar evaluación";
-    if (btnSubmit) btnSubmit.textContent = "Enviando...";
+    btnSubmit.disabled = true;
+    const originalText = btnSubmit.textContent;
+    btnSubmit.textContent = "Enviando...";
 
     try {
       const cvB64 = await fileToBase64NoPrefix(file);
@@ -779,17 +674,15 @@ window.PUBLIC_EVAL_API_KEY =
         meta: {
           user_agent: navigator.userAgent,
           lang: navigator.language,
-          order_seed: state.orderSeed, // ✅ trazabilidad del orden
+          timed_out: !!state.timedOut,
+          remaining_seconds: Number(state.remaining || 0),
         },
-        // ✅ solo 8 preguntas (1 por módulo)
         questions: state.questions.map((q, i) => ({
-          id: q.id || `Q${i + 1}`,
-          moduleId: q.moduleId || "",
-          // moduleName se envía si quieres para tu análisis interno,
-          // pero el candidato NUNCA lo ve.
+          id: q.id || q.qid || `Q${i + 1}`,
+          moduleId: q.moduleId || q.module || "",
           moduleName: q.moduleName || "",
-          prompt: q.prompt || "",
-          answer: (state.answers[i] || "").trim(),
+          prompt: q.prompt || q.text || q.question || "",
+          answer: normalizeText(state.answers[i] || ""),
         })),
         cv: {
           name: file.name || "cv.pdf",
@@ -798,52 +691,35 @@ window.PUBLIC_EVAL_API_KEY =
         },
         incidents: {
           total: state.incidents.total,
-          detail: state.incidents.byQuestion,
-        },
-        timing: {
-          duration_seconds: state.durationSeconds,
-          remaining_seconds: state.remaining,
-          finished_by_timeout: !!dueToTimeout,
+          detail: state.incidents.byQuestion
         },
       };
 
       await postJson(ENDPOINT_SUBMIT, payload);
 
-      if (mrMsg) mrMsg.textContent = "Evaluación enviada.";
-      openModalResult();
+      stopTimer();
+      openModalResult(state.timedOut ? "Tiempo finalizado. Evaluación enviada." : "Evaluación enviada.");
     } catch (err) {
-      setMsg(examError, err?.message || "No se pudo enviar la evaluación.");
+      const msg = String(err?.message || "");
+      const code = String(err?.code || "");
+      const looksLikeLimit =
+        code.toUpperCase().includes("MAX") ||
+        /max/i.test(msg) ||
+        /exced/i.test(msg) ||
+        /2\s*evalu/i.test(msg) ||
+        /año/i.test(msg);
+
+      if (looksLikeLimit) {
+        stopTimer();
+        openModalResult("Has excedido el máximo permitido: 2 evaluaciones por año.");
+        return;
+      }
+
+      setMsg(examError, msg || "No se pudo enviar la evaluación.");
     } finally {
-      if (btnSubmit) btnSubmit.disabled = false;
-      if (btnSubmit) btnSubmit.textContent = originalText;
+      btnSubmit.disabled = false;
+      btnSubmit.textContent = originalText;
     }
-  }
-
-  // =============================
-  // Modals
-  // =============================
-  function openModalInfo() {
-    if (!modalInfo) return;
-    modalInfo.classList.remove("hidden", "is-hidden");
-    modalInfo.classList.add("open");
-  }
-
-  function closeModalInfo() {
-    if (!modalInfo) return;
-    modalInfo.classList.remove("open");
-    modalInfo.classList.add("hidden");
-  }
-
-  function openModalResult() {
-    if (!modalResult) return;
-    modalResult.classList.remove("hidden", "is-hidden");
-    modalResult.classList.add("open");
-  }
-
-  function closeModalResult() {
-    if (!modalResult) return;
-    modalResult.classList.remove("open");
-    modalResult.classList.add("hidden");
   }
 
   // =============================
@@ -897,19 +773,16 @@ window.PUBLIC_EVAL_API_KEY =
     el.addEventListener("click", closeModalResult);
   });
 
-  // Navegación: NO avanza si respuesta no válida
+  btnPrev?.addEventListener("click", () => { /* oculto */ });
+
   btnNext?.addEventListener("click", () => {
     if (!state.examStarted) return;
+    saveCurrentAnswer();
 
-    const ta = questionHost?.querySelector("#qAnswer");
-    const currentVal = String(ta?.value || "").trim();
-
-    if (!isAnswerValid(currentVal)) {
-      setMsg(examError, "Debes escribir una respuesta válida para continuar.");
+    if (!isValidAnswer(state.answers[currentIndex])) {
+      setMsg(examError, "Responde de forma completa antes de continuar.");
       return;
     }
-
-    saveCurrentAnswer();
 
     if (currentIndex < state.questions.length - 1) {
       currentIndex += 1;
@@ -919,30 +792,15 @@ window.PUBLIC_EVAL_API_KEY =
 
   btnSubmit?.addEventListener("click", async () => {
     if (!state.examStarted) return;
-
-    const ta = questionHost?.querySelector("#qAnswer");
-    const currentVal = String(ta?.value || "").trim();
-
-    if (!isAnswerValid(currentVal)) {
-      setMsg(examError, "Debes escribir una respuesta válida antes de enviar.");
-      return;
-    }
-
-    await finishExam({ dueToTimeout: false });
+    await finishExam(false);
   });
 
-  // Bloquear copiar / cortar / pegar durante examen (silencioso)
   ["copy", "cut", "paste"].forEach((evt) => {
     document.addEventListener(evt, (e) => {
       if (!state.examStarted) return;
       e.preventDefault();
       registerIncident(evt);
     });
-  });
-
-  document.addEventListener("contextmenu", (e) => {
-    if (!state.examStarted) return;
-    e.preventDefault();
   });
 
   window.addEventListener("blur", () => {
@@ -955,7 +813,7 @@ window.PUBLIC_EVAL_API_KEY =
     if (document.visibilityState === "hidden") registerIncident("blur");
   });
 
-  document.addEventListener("keydown", (e) => {
+  window.addEventListener("keydown", (e) => {
     if (!state.examStarted) return;
     if (e.key === "PrintScreen") registerIncident("screenshot");
   });
@@ -967,30 +825,32 @@ window.PUBLIC_EVAL_API_KEY =
     hide(examCard);
     show(form);
 
-    if (btnStart) {
-      show(btnStart);
-      btnStart.disabled = true;
-    }
-
+    btnStart.disabled = true;
     updateCvPickerLabel();
 
-    await wakeRender();
+    setMsg(serviceInfo, "Activando servicio...");
+    await warmUpService();
 
     try {
       await withRetry(async () => {
         await loadPositions();
         const optionsCount = roleSelect?.querySelectorAll("option")?.length || 0;
         if (optionsCount <= 1) throw new Error("Cargos aún no disponibles");
-      }, 7);
-    } catch (e) {
+      }, 14);
+
+      setMsg(serviceInfo, "");
+    } catch (_) {
+      setMsg(serviceInfo, "");
       setMsg(formError, "El servicio está iniciando. Espera unos segundos y recarga la página.");
-      roleSelect.innerHTML = `<option value="" selected>Cargando...</option>`;
+      roleSelect.innerHTML = `<option value="" selected>Error al cargar</option>`;
     }
 
     refreshStartButton();
   });
 
   document.addEventListener("visibilitychange", async () => {
-    if (document.visibilityState === "visible") await wakeRender();
+    if (document.visibilityState === "visible") {
+      await warmUpService();
+    }
   });
 })();
