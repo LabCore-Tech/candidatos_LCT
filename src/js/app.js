@@ -16,12 +16,10 @@ window.PUBLIC_EVAL_API_KEY =
   // =============================
   const API_BASE = "https://protrack-49um.onrender.com";
 
-  // OJO: tu front NO es "public" normal, es el que estás usando ahora.
   const ENDPOINT_POSITIONS = `${API_BASE}/api/gh/public/positions`;
   const ENDPOINT_EVAL = `${API_BASE}/api/gh/public/eval`; // ?position_id=xxx
   const ENDPOINT_SUBMIT = `${API_BASE}/api/gh/public/submit`;
 
-  // Si existe <meta name="PUBLIC_EVAL_API_KEY" content="..."> lo toma de ahí
   const metaKey =
     document
       .querySelector('meta[name="PUBLIC_EVAL_API_KEY"]')
@@ -70,11 +68,9 @@ window.PUBLIC_EVAL_API_KEY =
 
   const examError = $("examError");
 
-  // Modal info (10 min)
   const modalInfo = $("modalInfo");
   const btnContinue = $("btnContinue");
 
-  // Modal result (OK)
   const modalResult = $("modalResult");
 
   // =============================
@@ -82,7 +78,7 @@ window.PUBLIC_EVAL_API_KEY =
   // =============================
   const state = {
     positions: [],
-    evalByPosition: new Map(), // position_id -> normalized eval
+    evalByPosition: new Map(),
     activePositionId: "",
     questions: [],
     answers: [],
@@ -116,7 +112,7 @@ window.PUBLIC_EVAL_API_KEY =
 
   function headers() {
     const h = { Accept: "application/json" };
-    if (PUBLIC_KEY) h["X-API-Key"] = PUBLIC_KEY; // ✅ exacto
+    if (PUBLIC_KEY) h["X-API-Key"] = PUBLIC_KEY;
     return h;
   }
 
@@ -178,9 +174,6 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   function normalizeEvalResponse(data) {
-    // Soporta:
-    // A) { ok:true, position:{...}, qb:{...}, questions:[...] }
-    // B) { eval:{questions:[...], duration_minutes, title}, position:{...}, qb:{...} }
     if (data?.ok === true) {
       return {
         ok: true,
@@ -213,24 +206,16 @@ window.PUBLIC_EVAL_API_KEY =
     return `${mm}:${ss}`;
   }
 
-  // =============================
-  // Step control
-  // =============================
   function goToExamStep() {
-    hide(form); // Paso 1 fuera
-    show(examCard); // Paso 2 limpio
+    hide(form);
+    show(examCard);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  // =============================
-  // CV picker label
-  // =============================
   function updateCvPickerLabel() {
     if (!cvPicker) return;
     const f = cvFile?.files?.[0];
-    const label = f ? f.name : "Haz clic para adjuntar tu PDF";
-    // cvPicker en tu HTML es BUTTON
-    cvPicker.textContent = label;
+    cvPicker.textContent = f ? f.name : "Haz clic para adjuntar tu PDF";
   }
 
   // =============================
@@ -240,15 +225,12 @@ window.PUBLIC_EVAL_API_KEY =
     if (!firstName?.value?.trim()) return false;
     if (!lastName?.value?.trim()) return false;
     if (!cedula?.value?.trim()) return false;
-
-    // ✅ FIX: antes estaba "role.value" y eso te rompe
     if (!roleSelect?.value) return false;
 
     if (!email?.value?.trim()) return false;
     if (!phone?.value?.trim()) return false;
     if (!github?.value?.trim()) return false;
 
-    // ✅ CV obligatorio
     if (!cvFile || cvFile.files.length === 0) return false;
 
     if (!university?.value?.trim()) return false;
@@ -259,16 +241,8 @@ window.PUBLIC_EVAL_API_KEY =
 
   function refreshStartButton() {
     if (!btnStart) return;
-
-    // botón siempre visible
     show(btnStart);
-
-    if (isFormOk()) {
-      btnStart.disabled = false;
-      setMsg(formError, "");
-    } else {
-      btnStart.disabled = true;
-    }
+    btnStart.disabled = !isFormOk();
   }
 
   // =============================
@@ -279,7 +253,7 @@ window.PUBLIC_EVAL_API_KEY =
     try {
       const data = await fetchJson(ENDPOINT_POSITIONS);
 
-      // ✅ robusto: soporta {positions}, {items}, {data} o array
+      // ✅ soporta {ok:true, positions:[...]} y también array directo
       const positions = Array.isArray(data)
         ? data
         : data.positions || data.items || data.data || [];
@@ -323,13 +297,10 @@ window.PUBLIC_EVAL_API_KEY =
 
       state.evalByPosition.set(positionId, normalized);
 
-      if (!normalized.ok) {
-        setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
-      } else if (!normalized.questions?.length) {
-        setMsg(formError, "La evaluación existe, pero no tiene preguntas.");
-      } else {
-        setMsg(formError, "");
-      }
+      if (!normalized.ok) setMsg(formError, "No se pudo cargar la evaluación.");
+      else if (!normalized.questions?.length)
+        setMsg(formError, "La evaluación no tiene preguntas.");
+      else setMsg(formError, "");
     } catch (err) {
       setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
     } finally {
@@ -385,10 +356,8 @@ window.PUBLIC_EVAL_API_KEY =
       qAnswerEl.focus();
     }
 
-    // botones
     const last = state.currentIndex === state.questions.length - 1;
 
-    // en tu HTML existen los 3 (Prev/Next/Submit)
     if (btnPrev) btnPrev.disabled = state.currentIndex === 0;
     if (btnNext) btnNext.style.display = last ? "none" : "inline-flex";
     if (btnSubmit) btnSubmit.style.display = last ? "inline-flex" : "none";
@@ -407,23 +376,6 @@ window.PUBLIC_EVAL_API_KEY =
       return;
     }
 
-    const emailVal = email ? email.value.trim() : "";
-    const phoneVal = phone ? phone.value.trim() : "";
-    const githubVal = github ? github.value.trim() : "";
-
-    if (email && !emailVal) {
-      setMsg(examError, "Email es obligatorio.");
-      return;
-    }
-    if (phone && !phoneVal) {
-      setMsg(examError, "Celular es obligatorio.");
-      return;
-    }
-    if (github && !githubVal) {
-      setMsg(examError, "GitHub es obligatorio.");
-      return;
-    }
-
     const file = cvFile?.files?.[0];
     if (!file) {
       setMsg(examError, "Falta adjuntar el CV.");
@@ -435,12 +387,11 @@ window.PUBLIC_EVAL_API_KEY =
       return;
     }
 
-    if (btnSubmit) btnSubmit.disabled = true;
-    if (btnNext) btnNext.disabled = true;
-    if (btnPrev) btnPrev.disabled = true;
-
-    const originalSubmitText = btnSubmit?.textContent || "";
-    if (btnSubmit) btnSubmit.textContent = "Enviando...";
+    const originalSubmitText = btnSubmit?.textContent || "Enviar evaluación";
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = "Enviando...";
+    }
 
     try {
       const cvB64 = await fileToBase64NoPrefix(file);
@@ -456,9 +407,9 @@ window.PUBLIC_EVAL_API_KEY =
           last_name: lastName.value.trim(),
           cedula: cedula.value.trim(),
 
-          email: emailVal,
-          phone: phoneVal,
-          github: githubVal,
+          email: email.value.trim(),
+          phone: phone.value.trim(),
+          github: github.value.trim(),
           linkedin: linkedin ? linkedin.value.trim() : "",
 
           university: university.value.trim(),
@@ -487,47 +438,13 @@ window.PUBLIC_EVAL_API_KEY =
 
       openModalResult("Listo", "Evaluación enviada.");
     } catch (err) {
-      const msg = err?.message || "No se pudo enviar la evaluación.";
-
-      if (msg === "Límite máximo alcanzado.") {
-        openModalResult("Atención", msg);
-        return;
-      }
-
-      setMsg(examError, msg);
+      setMsg(examError, err?.message || "No se pudo enviar la evaluación.");
     } finally {
       if (btnSubmit) {
         btnSubmit.disabled = false;
-        btnSubmit.textContent = originalSubmitText || "Enviar evaluación";
+        btnSubmit.textContent = originalSubmitText;
       }
-      if (btnNext) btnNext.disabled = false;
-      if (btnPrev) btnPrev.disabled = false;
     }
-  }
-
-  function beginExam() {
-    const pid = roleSelect.value.trim();
-    const evalData = state.evalByPosition.get(pid);
-
-    if (!evalData?.ok || !evalData.questions?.length) {
-      setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
-      refreshStartButton();
-      return;
-    }
-
-    state.examStarted = true;
-    state.activePositionId = pid;
-    state.questions = evalData.questions;
-    state.answers = new Array(state.questions.length).fill("");
-
-    state.durationSeconds = Math.max(1, (evalData.duration_minutes || 10) * 60);
-    state.remaining = state.durationSeconds;
-
-    state.currentIndex = 0;
-
-    goToExamStep();
-    renderQuestion();
-    startTimer();
   }
 
   // =============================
@@ -535,8 +452,7 @@ window.PUBLIC_EVAL_API_KEY =
   // =============================
   function openModalInfo() {
     if (!modalInfo) return;
-    modalInfo.classList.remove("hidden");
-    modalInfo.classList.remove("is-hidden");
+    modalInfo.classList.remove("hidden", "is-hidden");
     modalInfo.classList.add("open");
   }
 
@@ -555,8 +471,7 @@ window.PUBLIC_EVAL_API_KEY =
     if (t) t.textContent = title || "Listo";
     if (m) m.textContent = msg || "";
 
-    modalResult.classList.remove("hidden");
-    modalResult.classList.remove("is-hidden");
+    modalResult.classList.remove("hidden", "is-hidden");
     modalResult.classList.add("open");
   }
 
@@ -571,13 +486,20 @@ window.PUBLIC_EVAL_API_KEY =
   // =============================
   const revalidate = () => refreshStartButton();
 
-  [firstName, lastName, cedula, university, career, semester].forEach((el) =>
-    el?.addEventListener("input", revalidate)
-  );
+  [
+    firstName,
+    lastName,
+    cedula,
+    email,
+    phone,
+    github,
+    linkedin,
+    university,
+    career,
+    semester,
+  ].forEach((el) => el?.addEventListener("input", revalidate));
 
-  [email, phone, github, linkedin].forEach((el) =>
-    el?.addEventListener("input", revalidate)
-  );
+  acceptPolicy?.addEventListener("change", revalidate);
 
   roleSelect?.addEventListener("change", async () => {
     const pid = roleSelect.value.trim();
@@ -586,9 +508,6 @@ window.PUBLIC_EVAL_API_KEY =
     refreshStartButton();
   });
 
-  acceptPolicy?.addEventListener("change", revalidate);
-
-  // CV picker (click en campo -> selector)
   cvPicker?.addEventListener("click", () => cvFile?.click());
   cvPicker?.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -609,15 +528,34 @@ window.PUBLIC_EVAL_API_KEY =
 
   btnContinue?.addEventListener("click", () => {
     closeModalInfo();
-    beginExam();
+    // inicia examen
+    const pid = roleSelect.value.trim();
+    const evalData = state.evalByPosition.get(pid);
+
+    if (!evalData?.ok || !evalData.questions?.length) {
+      setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
+      refreshStartButton();
+      return;
+    }
+
+    state.examStarted = true;
+    state.activePositionId = pid;
+    state.questions = evalData.questions;
+    state.answers = new Array(state.questions.length).fill("");
+
+    state.durationSeconds = Math.max(1, (evalData.duration_minutes || 10) * 60);
+    state.remaining = state.durationSeconds;
+    state.currentIndex = 0;
+
+    goToExamStep();
+    renderQuestion();
+    startTimer();
   });
 
-  // Cierra modalInfo por backdrop / X (data-close="1")
   modalInfo?.querySelectorAll('[data-close="1"]').forEach((el) => {
     el.addEventListener("click", closeModalInfo);
   });
 
-  // Navegación examen
   btnPrev?.addEventListener("click", () => {
     if (!state.examStarted) return;
     saveCurrentAnswer();
@@ -627,19 +565,14 @@ window.PUBLIC_EVAL_API_KEY =
     }
   });
 
-  btnNext?.addEventListener("click", async (e) => {
+  btnNext?.addEventListener("click", (e) => {
     e.preventDefault();
     if (!state.examStarted) return;
-
     saveCurrentAnswer();
-
     if (state.currentIndex < state.questions.length - 1) {
       state.currentIndex += 1;
       renderQuestion();
-      return;
     }
-
-    await finishExam();
   });
 
   btnSubmit?.addEventListener("click", async (e) => {
@@ -648,18 +581,15 @@ window.PUBLIC_EVAL_API_KEY =
     await finishExam();
   });
 
-  // Ctrl+Enter => Next/Submit
   qAnswerEl?.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
-      // si está en la última pregunta => submit
       const last = state.currentIndex === state.questions.length - 1;
       if (last) btnSubmit?.click();
       else btnNext?.click();
     }
   });
 
-  // Cierra modalResult por backdrop / X / OK (data-close="1")
   modalResult?.querySelectorAll('[data-close="1"]').forEach((el) => {
     el.addEventListener("click", closeModalResult);
   });
