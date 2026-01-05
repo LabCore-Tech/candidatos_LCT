@@ -246,15 +246,19 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
   }
 
   function refreshStartButton() {
+    if (!btnStart) return;
+
+    // 🔒 El botón SIEMPRE visible
+    show(btnStart);
+
     if (isFormOk()) {
       btnStart.disabled = false;
-      show(btnStart);            // requisito: solo aparece cuando todo OK
       setMsg(formError, "");
     } else {
       btnStart.disabled = true;
-      hide(btnStart);
     }
   }
+
 
   // =============================
   // Data load
