@@ -589,15 +589,16 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
   // Init
   // =============================
   document.addEventListener("DOMContentLoaded", async () => {
-    hide(examCard);
-    show(form);
+  hide(examCard);
+  show(form);
 
-    hide(btnStart);
-    btnStart.disabled = true;
+  // ✅ Botón siempre visible; solo empieza deshabilitado
+  show(btnStart);
+  btnStart.disabled = true;
 
-    await loadPositions();
-    refreshStartButton();
-    updateCvPickerLabel();
+  await loadPositions();
+  refreshStartButton();
+  updateCvPickerLabel();
+});
 
-  });
 })();
