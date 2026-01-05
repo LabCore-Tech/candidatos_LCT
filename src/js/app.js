@@ -45,6 +45,7 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
   const semester = $("semester");
   const roleSelect = $("role");
   const cvFile = $("cvFile");
+  const cvPicker = $("cvPicker");
   const acceptPolicy = $("acceptPolicy");
 
   const btnStart = $("btnStart");
@@ -499,7 +500,27 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
   // ✅ Si existen en tu HTML, también revalidan sin romper nada
   [email, phone, github, linkedin].forEach((el) => el?.addEventListener("input", revalidate));
 
-  cvFile?.addEventListener("change", revalidate);
+  function updateCvPickerLabel() {
+    if (!cvPicker) return;
+    const f = cvFile?.files?.[0];
+    cvPicker.value = f ? f.name : "Haz clic para adjuntar tu PDF";
+  }
+
+  cvPicker?.addEventListener("click", () => {
+    cvFile?.click();
+  });
+
+  cvPicker?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      cvFile?.click();
+    }
+  });
+
+  cvFile?.addEventListener("change", () => {
+    updateCvPickerLabel();
+    refreshStartButton();
+  });
 
   roleSelect?.addEventListener("change", async () => {
     const pid = roleSelect.value.trim();
@@ -554,5 +575,8 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
 
     await loadPositions();
     refreshStartButton();
+
+    updateCvPickerLabel();
+
   });
 })();
