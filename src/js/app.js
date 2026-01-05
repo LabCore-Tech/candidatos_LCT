@@ -54,8 +54,26 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
 
   const examCard = $("examCard");
   const timerEl = $("timer");
-  const qTextEl = $("qText");
-  const qAnswerEl = $("qAnswer");
+  let qTextEl = $("qText");
+let qAnswerEl = $("qAnswer");
+const questionHost = $("questionHost");
+
+// Si el HTML no trae qText/qAnswer (usa questionHost), los creamos aquí
+function ensureQuestionUI() {
+  if (qTextEl && qAnswerEl) return;
+  if (!questionHost) return;
+
+  questionHost.innerHTML = `
+    <div class="question">
+      <div id="qText" class="question__text"></div>
+      <textarea id="qAnswer" class="input textarea" rows="6"></textarea>
+    </div>
+  `.trim();
+
+  qTextEl = questionHost.querySelector("#qText");
+  qAnswerEl = questionHost.querySelector("#qAnswer");
+}
+
   const btnNext = $("btnNext");
   const examError = $("examError");
 
@@ -223,7 +241,7 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
     if (!firstName.value.trim()) return false;
     if (!lastName.value.trim()) return false;
     if (!cedula.value.trim()) return false;
-    if (!role.value) return false;
+    if (!roleSelect?.value) return false;
     if (!email.value.trim()) return false;
     if (!phone.value.trim()) return false;
     if (!github.value.trim()) return false;
@@ -337,6 +355,7 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
   }
 
   function renderQuestion() {
+    ensureQuestionUI();
     const q = state.questions[currentIndex];
     if (!q) return;
 
@@ -576,19 +595,36 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
   });
 
 
-  btnNext?.addEventListener("click", (e) => {
-    e.preventDefault();
+  // Navegación del examen
+  btnPrev?.addEventListener("click", () => {
+    if (!state.examStarted) return;
     saveCurrentAnswer();
-
-    if (currentIndex < state.questions.length - 1) {
-      currentIndex += 1;
+    if (state.currentIndex > 0) {
+      state.currentIndex -= 1;
       renderQuestion();
-      return;
     }
-
-    // ✅ finishExam ahora es async
-    finishExam().catch(() => {});
   });
+
+  btnNext?.addEventListener("click", () => {
+    if (!state.examStarted) return;
+    saveCurrentAnswer();
+    if (state.currentIndex < state.questions.length - 1) {
+      state.currentIndex += 1;
+      renderQuestion();
+    }
+  });
+
+  btnSubmit?.addEventListener("click", async () => {
+    if (!state.examStarted) return;
+    saveCurrentAnswer();
+    await finishExam();
+  });
+
+  // Enter en el textarea NO envía el form
+  qAnswerEl?.addEventListener("keydown", (e) => {
+    // no-op
+  });
+
 
   qAnswerEl?.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") btnNext.click();
