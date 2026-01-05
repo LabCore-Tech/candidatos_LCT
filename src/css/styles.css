@@ -588,3 +588,98 @@ body{
   transform: translateX(6px);
   opacity: 1;
 }
+
+/* TU CSS ORIGINAL (NO QUITO NADA), SOLO AGREGO/RETOCO LO MÍNIMO PARA LOS CAMBIOS */
+
+/* ====== helpers ====== */
+.hidden { display: none !important; }
+.req { color: #e11d48; margin-left: 6px; }
+
+/* ====== mensajes ====== */
+.msg {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+.msg--error {
+  background: rgba(225, 29, 72, .10);
+  border: 1px solid rgba(225, 29, 72, .22);
+  color: #9f1239;
+}
+
+/* ====== botón tipo file ====== */
+.file-like{
+  width: 100%;
+  text-align: left;
+  padding: 14px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(15,23,42,.12);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  color: #64748b;
+}
+.file-like:hover{
+  border-color: rgba(128,0,128,.35);
+}
+
+/* ====== acciones centradas ====== */
+.actions--center{ display:flex; justify-content:center; }
+
+/* ====== EXAM ====== */
+.examHead{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 14px;
+}
+
+/* ✅ botones centrados (ya no queda Next a la izquierda y Submit a la derecha) */
+.examActions{
+  display:flex;
+  justify-content:center;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+/* ====== timer ====== */
+.timer{
+  min-width: 150px;
+  border: 1px solid rgba(15,23,42,.10);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,.75);
+  backdrop-filter: blur(10px);
+}
+.timer__label{
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 700;
+}
+.timer__value{
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: .6px;
+  margin-top: 2px;
+  color: #0f172a;
+}
+
+/* ✅ señales visuales */
+.timer.timer--warn{
+  border-color: rgba(214,180,107,.55);
+  box-shadow: 0 0 0 5px rgba(214,180,107,.12), 0 12px 22px rgba(15,23,42,.08);
+}
+.timer.timer--danger{
+  border-color: rgba(239,68,68,.45);
+  box-shadow: 0 0 0 6px rgba(239,68,68,.14), 0 12px 22px rgba(15,23,42,.08);
+}
+.timer.timer--danger .timer__value{ color:#b91c1c; }
+
+/* ====== icono Next ====== */
+.btn-next .btn-icon{
+  font-size: 30px;
+  line-height: 1;
+  display:inline-block;
+  transform: translateY(-1px);
+}
