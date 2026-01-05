@@ -62,8 +62,7 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
   // Modales (si existen)
   const modalInfo = $("modalInfo");
   const modalInfoClose = $("modalInfoClose");
-  const btnCancelStart = $("btnCancelStart");
-  const btnAcceptStart = $("btnAcceptStart");
+  const btnContinue = $("btnContinue");
 
   const modalDone = $("modalDone");
   const modalDoneClose = $("modalDoneClose");
@@ -563,13 +562,13 @@ window.PUBLIC_EVAL_API_KEY = "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6e
     openModalInfo();
   });
 
-  btnAcceptStart?.addEventListener("click", () => {
+  btnContinue?.addEventListener("click", () => {
     closeModalInfo();
     beginExam();
   });
 
-  btnCancelStart?.addEventListener("click", closeModalInfo);
   modalInfoClose?.addEventListener("click", closeModalInfo);
+
 
   btnNext?.addEventListener("click", (e) => {
     e.preventDefault();
