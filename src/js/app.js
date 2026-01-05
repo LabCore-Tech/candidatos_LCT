@@ -122,6 +122,43 @@ window.PUBLIC_EVAL_API_KEY =
     return h;
   }
 
+    // =============================
+  // Render WAKE (evita "cargos no cargan" cuando está dormido)
+  // =============================
+  async function wakeRender() {
+    // endpoint liviano: positions (si está dormido, esto lo despierta)
+    try {
+      await fetch(ENDPOINT_POSITIONS, {
+        method: "GET",
+        headers: headers(),
+        cache: "no-store",
+      });
+    } catch (_) {
+      // no hacemos nada: el objetivo es "tocar" el servicio
+    }
+  }
+
+  async function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  // Reintenta una función async varias veces con backoff
+  async function withRetry(fn, tries = 6) {
+    let lastErr = null;
+    for (let i = 0; i < tries; i++) {
+      try {
+        return await fn();
+      } catch (e) {
+        lastErr = e;
+        // backoff: 0.5s, 1s, 2s, 4s, 6s, 8s...
+        const wait = i === 0 ? 500 : Math.min(8000, 1000 * Math.pow(2, i - 1));
+        await sleep(wait);
+      }
+    }
+    throw lastErr || new Error("No se pudo completar la operación.");
+  }
+
+
   async function fetchJson(url) {
     const res = await fetch(url, { method: "GET", headers: headers() });
     const ct = (res.headers.get("content-type") || "").toLowerCase();
@@ -665,18 +702,37 @@ window.PUBLIC_EVAL_API_KEY =
     hide(examCard);
     show(form);
 
-    updateCvPickerLabel();
-
-    // Botón inicia deshabilitado (como te gusta)
     show(btnStart);
     btnStart.disabled = true;
 
-    // Botón submit oculto al inicio
-    hide(btnSubmit);
-    show(btnNext);
+    updateCvPickerLabel();
 
-    await loadPositions();
+    // ✅ WAKE Render (despierta el servicio)
+    setMsg(uiMsg, "Activando servicio...");
+    await wakeRender();
+
+    // ✅ Cargar cargos con reintentos (por si Render aún está levantando)
+    try {
+      await withRetry(async () => {
+        await loadPositions();
+        // valida que ya haya opciones reales
+        const optionsCount = roleSelect?.querySelectorAll("option")?.length || 0;
+        if (optionsCount <= 1) throw new Error("Cargos aún no disponibles");
+      }, 7);
+      setMsg(uiMsg, "");
+    } catch (e) {
+      setMsg(uiMsg, "");
+      setMsg(formError, "El servicio está iniciando. Espera unos segundos y recarga la página.");
+    }
+
     refreshStartButton();
   });
+
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState === "visible") {
+      await wakeRender();
+    }
+  });
+
 
 })();
