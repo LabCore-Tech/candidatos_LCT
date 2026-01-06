@@ -1,12 +1,13 @@
 /* LabCore - Evaluación de ingreso (front)
-   - Carga cargos (positions)
-   - Precarga evaluación (questions) por cargo
-   - Botón "Iniciar prueba" deshabilitado hasta que el formulario esté OK + evaluación OK
-   - Step 1: Datos del postulante
-   - Step 2: Solo evaluación (pregunta + respuesta)
+   - Sistema COMPLETO de tracking antifraude
+   - Tiempos por pregunta detallados
+   - Focus/Blur por pregunta
+   - Acciones específicas por pregunta
+   - Screenshot detection mejorado
+   - Metrics avanzadas
 */
 
-// 🔐 API KEY pública para evaluación (se puede sobreescribir por <meta name="PUBLIC_EVAL_API_KEY" ...>)
+// 🔐 API KEY pública para evaluación
 window.PUBLIC_EVAL_API_KEY =
   window.PUBLIC_EVAL_API_KEY ||
   "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98";
@@ -19,13 +20,11 @@ window.PUBLIC_EVAL_API_KEY =
   // =============================
   const API_BASE = "https://protrack-49um.onrender.com";
   const ENDPOINT_POSITIONS = `${API_BASE}/api/gh/public/positions`;
-  const ENDPOINT_EVAL = `${API_BASE}/api/gh/public/eval`; // ?position_id=xxx
+  const ENDPOINT_EVAL = `${API_BASE}/api/gh/public/eval`;
   const ENDPOINT_SUBMIT = `${API_BASE}/api/gh/public/submit`;
 
-  // URL para redirección después del envío
   const REDIRECT_URL = "https://www.google.com";
-
-  // Si existe meta, también se puede tomar de ahí
+  
   const metaKey =
     document
       .querySelector('meta[name="PUBLIC_EVAL_API_KEY"]')
@@ -38,26 +37,20 @@ window.PUBLIC_EVAL_API_KEY =
   const $ = (id) => document.getElementById(id);
 
   const form = $("candidateForm");
-
   const firstName = $("firstName");
   const lastName = $("lastName");
   const cedula = $("cedula");
   const roleSelect = $("role");
-
   const email = $("email");
   const phone = $("phone");
   const github = $("github");
   const linkedin = $("linkedin");
-
   const university = $("university");
   const career = $("career");
   const semester = $("semester");
-
   const cvFile = $("cvFile");
   const cvPicker = $("cvPicker");
-
   const acceptPolicy = $("acceptPolicy");
-
   const btnStart = $("btnStart");
   const formError = $("formError");
   const serviceInfo = $("serviceInfo");
@@ -67,23 +60,19 @@ window.PUBLIC_EVAL_API_KEY =
   const timerEl = $("timer");
   const timeHint = $("timeHint");
   const examError = $("examError");
-
   const questionHost = $("questionHost");
-  const btnPrev = $("btnPrev");     // se mantiene en DOM (hidden por HTML)
+  const btnPrev = $("btnPrev");
   const btnNext = $("btnNext");
   const btnSubmit = $("btnSubmit");
 
-  // Modal info
   const modalInfo = $("modalInfo");
   const btnContinue = $("btnContinue");
-
-  // Modal resultado
   const modalResult = $("modalResult");
   const mrMsg = $("mrMsg");
   const btnCloseResult = $("btnCloseResult");
 
   // =============================
-  // State
+  // State - ANTIFRAUDE COMPLETO MEJORADO
   // =============================
   const state = {
     evalByPosition: new Map(),
@@ -94,17 +83,64 @@ window.PUBLIC_EVAL_API_KEY =
     timerHandle: null,
     examStarted: false,
     timedOut: false,
-
-    incidents: {
-      total: 0,
-      byQuestion: {}
+    
+    // 🔴 SISTEMA COMPLETO DE ANTIFRAUDE
+    antifraud: {
+      // Tiempos globales
+      startTime: null,
+      endTime: null,
+      totalOutOfFocusTime: 0,
+      lastFocusLossTime: null,
+      
+      // Detalles por pregunta
+      questionsDetail: {}, // {qId: {times, focusEvents, actions, flags}}
+      
+      // Acciones globales
+      totalTabChanges: 0,
+      totalCopyActions: 0,
+      totalPasteActions: 0,
+      totalCutActions: 0,
+      screenshotAttempts: 0,
+      contextMenuAttempts: 0,
+      devToolsAttempts: 0,
+      
+      // Estado actual
+      currentQuestionId: null,
+      questionStartTime: null,
+      questionFocusStartTime: null,
+      questionOutOfFocusTime: 0,
+      questionOutOfFocusEvents: [],
+      
+      // Flags y patrones
+      flags: [],
+      patterns: {
+        rapidSequenceAnswers: 0,
+        copyPastePattern: false,
+        tabSwitchPattern: false
+      },
+      
+      // Metadata del navegador
+      browserInfo: {
+        userAgent: navigator.userAgent,
+        language: navigator.language,
+        platform: navigator.platform,
+        screenWidth: window.screen.width,
+        screenHeight: window.screen.height,
+        windowWidth: window.innerWidth,
+        windowHeight: window.innerHeight,
+        colorDepth: window.screen.colorDepth,
+        pixelDepth: window.screen.pixelDepth,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        cookiesEnabled: navigator.cookieEnabled,
+        doNotTrack: navigator.doNotTrack || 'unspecified'
+      }
     }
   };
 
   let currentIndex = 0;
 
   // =============================
-  // Utils UI
+  // Utils
   // =============================
   function setMsg(el, msg) {
     if (!el) return;
@@ -125,43 +161,478 @@ window.PUBLIC_EVAL_API_KEY =
     el.classList.add("is-hidden");
   }
 
+  function getTimestamp() {
+    return Date.now();
+  }
+
+  function formatTime(sec) {
+    const s = Math.max(0, sec | 0);
+    const mm = String(Math.floor(s / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return `${mm}:${ss}`;
+  }
+
   // =============================
-  // Incidents (NO se muestran al candidato)
+  // ANTIFRAUDE: Sistema de Tiempos por Pregunta
   // =============================
-  function ensureIncidentSlot(index) {
-    if (!state.incidents.byQuestion[index]) {
-      state.incidents.byQuestion[index] = {
-        copy: 0,
-        paste: 0,
-        cut: 0,
-        blur: 0,
-        screenshot: 0
+  function startQuestionTracking(questionId) {
+    const now = getTimestamp();
+    
+    // Finalizar pregunta anterior si existe
+    if (state.antifraud.currentQuestionId) {
+      endQuestionTracking(state.antifraud.currentQuestionId);
+    }
+    
+    // Inicializar nueva pregunta
+    state.antifraud.currentQuestionId = questionId;
+    state.antifraud.questionStartTime = now;
+    state.antifraud.questionFocusStartTime = now;
+    state.antifraud.questionOutOfFocusTime = 0;
+    state.antifraud.questionOutOfFocusEvents = [];
+    
+    // Crear estructura de pregunta si no existe
+    if (!state.antifraud.questionsDetail[questionId]) {
+      state.antifraud.questionsDetail[questionId] = {
+        times: {
+          start: now,
+          end: null,
+          totalDuration: 0,
+          focusedDuration: 0,
+          outOfFocusDuration: 0,
+          outOfFocusEvents: []
+        },
+        focusEvents: [],
+        actions: {
+          copy: 0,
+          paste: 0,
+          cut: 0,
+          tabChanges: 0,
+          screenshotAttempts: 0,
+          contextMenuAttempts: 0
+        },
+        flags: [],
+        metrics: {
+          typingSpeed: null,
+          answerLength: 0,
+          timeToFirstKey: null,
+          lastKeyTime: null
+        }
       };
+    } else {
+      // Actualizar tiempo de inicio
+      state.antifraud.questionsDetail[questionId].times.start = now;
     }
   }
 
-  function registerIncident(type) {
-    state.incidents.total++;
-    ensureIncidentSlot(currentIndex);
-    if (state.incidents.byQuestion[currentIndex][type] !== undefined) {
-      state.incidents.byQuestion[currentIndex][type]++;
+  function endQuestionTracking(questionId) {
+    const now = getTimestamp();
+    const questionData = state.antifraud.questionsDetail[questionId];
+    
+    if (!questionData) return;
+    
+    // Calcular tiempos finales
+    const totalDuration = Math.round((now - questionData.times.start) / 1000);
+    const outOfFocusDuration = state.antifraud.questionOutOfFocusTime;
+    const focusedDuration = totalDuration - outOfFocusDuration;
+    
+    questionData.times.end = now;
+    questionData.times.totalDuration = totalDuration;
+    questionData.times.outOfFocusDuration = outOfFocusDuration;
+    questionData.times.focusedDuration = focusedDuration;
+    questionData.times.outOfFocusEvents = [...state.antifraud.questionOutOfFocusEvents];
+    
+    // 🔴 FLAG: Respuesta muy rápida (< 15 segundos)
+    if (totalDuration < 15) {
+      const flag = `quick_answer_${questionId}`;
+      if (!questionData.flags.includes(flag)) {
+        questionData.flags.push(flag);
+      }
+      if (!state.antifraud.flags.includes(flag)) {
+        state.antifraud.flags.push(flag);
+      }
     }
-    // contador oculto en UI
-    const el = document.getElementById("incidents");
-    if (el) el.textContent = String(state.incidents.total);
+    
+    // 🔴 FLAG: Mucho tiempo fuera de foco (> 30% del tiempo total)
+    if (outOfFocusDuration > totalDuration * 0.3) {
+      const flag = `excessive_out_of_focus_${questionId}`;
+      if (!questionData.flags.includes(flag)) {
+        questionData.flags.push(flag);
+      }
+      if (!state.antifraud.flags.includes(flag)) {
+        state.antifraud.flags.push(flag);
+      }
+    }
+    
+    // 🔴 FLAG: Respuesta demasiado lenta (> 3 minutos)
+    if (totalDuration > 180) {
+      const flag = `slow_answer_${questionId}`;
+      if (!questionData.flags.includes(flag)) {
+        questionData.flags.push(flag);
+      }
+    }
+    
+    // Resetear contadores de pregunta
+    state.antifraud.questionOutOfFocusTime = 0;
+    state.antifraud.questionOutOfFocusEvents = [];
   }
 
   // =============================
-  // HTTP + Retry + Warmup (Render sleep)
+  // ANTIFRAUDE: Tracking de Focus/Blur DETALLADO
+  // =============================
+  function handleFocusLoss() {
+    if (!state.examStarted || !state.antifraud.currentQuestionId) return;
+    
+    const now = getTimestamp();
+    state.antifraud.lastFocusLossTime = now;
+    state.antifraud.totalTabChanges++;
+    
+    // Registrar evento de pérdida de foco
+    const focusEvent = {
+      type: 'focus_loss',
+      timestamp: now,
+      questionId: state.antifraud.currentQuestionId
+    };
+    
+    // Añadir a eventos globales de la pregunta
+    const questionData = state.antifraud.questionsDetail[state.antifraud.currentQuestionId];
+    if (questionData) {
+      questionData.focusEvents.push(focusEvent);
+      questionData.actions.tabChanges++;
+    }
+    
+    // 🔴 PATTERN: Patrón de cambio rápido de pestañas
+    if (questionData && questionData.actions.tabChanges >= 3) {
+      state.antifraud.patterns.tabSwitchPattern = true;
+      const flag = `tab_switch_pattern_${state.antifraud.currentQuestionId}`;
+      if (!questionData.flags.includes(flag)) {
+        questionData.flags.push(flag);
+      }
+    }
+  }
+
+  function handleFocusGain() {
+    if (!state.examStarted || !state.antifraud.currentQuestionId) return;
+    
+    const now = getTimestamp();
+    
+    // Calcular tiempo fuera de foco
+    if (state.antifraud.lastFocusLossTime) {
+      const timeOut = Math.round((now - state.antifraud.lastFocusLossTime) / 1000);
+      state.antifraud.totalOutOfFocusTime += timeOut;
+      state.antifraud.questionOutOfFocusTime += timeOut;
+      
+      // Registrar evento de recuperación de foco
+      const focusEvent = {
+        type: 'focus_gain',
+        timestamp: now,
+        timeOut: timeOut,
+        questionId: state.antifraud.currentQuestionId
+      };
+      
+      // Añadir a eventos de la pregunta
+      const questionData = state.antifraud.questionsDetail[state.antifraud.currentQuestionId];
+      if (questionData) {
+        questionData.focusEvents.push(focusEvent);
+        
+        // Registrar evento de fuera de foco
+        state.antifraud.questionOutOfFocusEvents.push({
+          start: state.antifraud.lastFocusLossTime,
+          end: now,
+          duration: timeOut
+        });
+        
+        questionData.times.outOfFocusEvents.push({
+          start: state.antifraud.lastFocusLossTime,
+          end: now,
+          duration: timeOut
+        });
+      }
+      
+      state.antifraud.lastFocusLossTime = null;
+    }
+    
+    // Registrar evento de ganancia de foco
+    const focusEvent = {
+      type: 'focus_gain',
+      timestamp: now,
+      questionId: state.antifraud.currentQuestionId
+    };
+    
+    const questionData = state.antifraud.questionsDetail[state.antifraud.currentQuestionId];
+    if (questionData) {
+      questionData.focusEvents.push(focusEvent);
+    }
+  }
+
+  // =============================
+  // ANTIFRAUDE: Tracking de Acciones por Pregunta
+  // =============================
+  function registerCopyAction() {
+    if (!state.examStarted || !state.antifraud.currentQuestionId) return;
+    
+    state.antifraud.totalCopyActions++;
+    
+    const questionId = state.antifraud.currentQuestionId;
+    const questionData = state.antifraud.questionsDetail[questionId];
+    
+    if (questionData) {
+      questionData.actions.copy++;
+      
+      // 🔴 FLAG: Muchas acciones de copia en una pregunta
+      if (questionData.actions.copy >= 3) {
+        const flag = `excessive_copy_${questionId}`;
+        if (!questionData.flags.includes(flag)) {
+          questionData.flags.push(flag);
+        }
+      }
+      
+      // 🔴 PATTERN: Patrón de copy/paste
+      if (questionData.actions.copy >= 2 && questionData.actions.paste >= 2) {
+        state.antifraud.patterns.copyPastePattern = true;
+        const flag = `copy_paste_pattern_${questionId}`;
+        if (!questionData.flags.includes(flag)) {
+          questionData.flags.push(flag);
+        }
+      }
+    }
+  }
+
+  function registerPasteAction() {
+    if (!state.examStarted || !state.antifraud.currentQuestionId) return;
+    
+    state.antifraud.totalPasteActions++;
+    
+    const questionId = state.antifraud.currentQuestionId;
+    const questionData = state.antifraud.questionsDetail[questionId];
+    
+    if (questionData) {
+      questionData.actions.paste++;
+      
+      // 🔴 FLAG: Muchas acciones de pegado en una pregunta
+      if (questionData.actions.paste >= 3) {
+        const flag = `excessive_paste_${questionId}`;
+        if (!questionData.flags.includes(flag)) {
+          questionData.flags.push(flag);
+        }
+      }
+    }
+  }
+
+  function registerCutAction() {
+    if (!state.examStarted || !state.antifraud.currentQuestionId) return;
+    
+    state.antifraud.totalCutActions++;
+    
+    const questionId = state.antifraud.currentQuestionId;
+    const questionData = state.antifraud.questionsDetail[questionId];
+    
+    if (questionData) {
+      questionData.actions.cut++;
+    }
+  }
+
+  function registerScreenshotAttempt() {
+    if (!state.examStarted || !state.antifraud.currentQuestionId) return;
+    
+    state.antifraud.screenshotAttempts++;
+    
+    const questionId = state.antifraud.currentQuestionId;
+    const questionData = state.antifraud.questionsDetail[questionId];
+    
+    if (questionData) {
+      questionData.actions.screenshotAttempts++;
+      
+      const flag = `screenshot_attempt_${questionId}`;
+      if (!questionData.flags.includes(flag)) {
+        questionData.flags.push(flag);
+      }
+      if (!state.antifraud.flags.includes(flag)) {
+        state.antifraud.flags.push(flag);
+      }
+    }
+  }
+
+  function registerContextMenuAttempt() {
+    if (!state.examStarted || !state.antifraud.currentQuestionId) return;
+    
+    state.antifraud.contextMenuAttempts++;
+    
+    const questionId = state.antifraud.currentQuestionId;
+    const questionData = state.antifraud.questionsDetail[questionId];
+    
+    if (questionData) {
+      questionData.actions.contextMenuAttempts++;
+      
+      const flag = `context_menu_attempt_${questionId}`;
+      if (!questionData.flags.includes(flag)) {
+        questionData.flags.push(flag);
+      }
+    }
+  }
+
+  // =============================
+  // ANTIFRAUDE: Detección de DevTools
+  // =============================
+  function detectDevTools() {
+    if (!state.examStarted) return;
+    
+    const widthThreshold = 160;
+    const element = new Image();
+    
+    Object.defineProperty(element, 'id', {
+      get: function() {
+        state.antifraud.devToolsAttempts++;
+        const flag = 'dev_tools_detected';
+        if (!state.antifraud.flags.includes(flag)) {
+          state.antifraud.flags.push(flag);
+        }
+      }
+    });
+    
+    console.log(element);
+    
+    // Detectar tamaño de consola
+    if (window.outerWidth - window.innerWidth > widthThreshold || 
+        window.outerHeight - window.innerHeight > widthThreshold) {
+      state.antifraud.devToolsAttempts++;
+      const flag = 'dev_tools_open';
+      if (!state.antifraud.flags.includes(flag)) {
+        state.antifraud.flags.push(flag);
+      }
+    }
+  }
+
+  // =============================
+  // ANTIFRAUDE: Preparar Datos para Envío
+  // =============================
+  function prepareAntifraudData() {
+    const now = getTimestamp();
+    const totalExamTime = state.antifraud.startTime ? 
+      Math.round((now - state.antifraud.startTime) / 1000) : 0;
+    
+    // Calcular métricas agregadas
+    const questionsSummary = {};
+    let totalQuestionsTime = 0;
+    let totalOutOfFocusTime = 0;
+    
+    Object.entries(state.antifraud.questionsDetail).forEach(([qId, qData]) => {
+      totalQuestionsTime += qData.times.totalDuration || 0;
+      totalOutOfFocusTime += qData.times.outOfFocusDuration || 0;
+      
+      questionsSummary[qId] = {
+        total_duration: qData.times.totalDuration,
+        focused_duration: qData.times.focusedDuration,
+        out_of_focus_duration: qData.times.outOfFocusDuration,
+        out_of_focus_events_count: qData.times.outOfFocusEvents.length,
+        copy_actions: qData.actions.copy,
+        paste_actions: qData.actions.paste,
+        cut_actions: qData.actions.cut,
+        tab_changes: qData.actions.tabChanges,
+        screenshot_attempts: qData.actions.screenshotAttempts,
+        context_menu_attempts: qData.actions.contextMenuAttempts,
+        flags: qData.flags
+      };
+    });
+    
+    // Calcular porcentajes
+    const percentageOutOfFocus = totalExamTime > 0 ? 
+      Math.round((state.antifraud.totalOutOfFocusTime / totalExamTime) * 100) : 0;
+    
+    const avgTimePerQuestion = state.questions.length > 0 ? 
+      Math.round(totalQuestionsTime / state.questions.length) : 0;
+    
+    // 🔴 FLAG: Examen completado demasiado rápido
+    if (totalExamTime < 300 && state.questions.length >= 8) { // < 5 minutos para 8 preguntas
+      if (!state.antifraud.flags.includes('exam_completed_too_fast')) {
+        state.antifraud.flags.push('exam_completed_too_fast');
+      }
+    }
+    
+    // 🔴 FLAG: Mucho tiempo fuera de foco (> 20% del tiempo total)
+    if (percentageOutOfFocus > 20) {
+      if (!state.antifraud.flags.includes('high_out_of_focus_percentage')) {
+        state.antifraud.flags.push('high_out_of_focus_percentage');
+      }
+    }
+    
+    // 🔴 FLAG: Muchas acciones de copy/paste
+    const totalCopyPaste = state.antifraud.totalCopyActions + state.antifraud.totalPasteActions;
+    if (totalCopyPaste > 10) {
+      if (!state.antifraud.flags.includes('excessive_copy_paste_total')) {
+        state.antifraud.flags.push('excessive_copy_paste_total');
+      }
+    }
+    
+    // 🔴 FLAG: Muchos cambios de pestaña
+    if (state.antifraud.totalTabChanges > 5) {
+      if (!state.antifraud.flags.includes('excessive_tab_changes')) {
+        state.antifraud.flags.push('excessive_tab_changes');
+      }
+    }
+    
+    return {
+      // Información básica
+      basics: {
+        lang: navigator.language || 'unknown',
+        user_agent: navigator.userAgent.substring(0, 500),
+        timed_out: state.timedOut,
+        remaining_seconds: state.remaining,
+        total_questions: state.questions.length,
+        exam_duration_seconds: totalExamTime
+      },
+      
+      // Información del navegador
+      browser_info: state.antifraud.browserInfo,
+      
+      // Tiempos globales
+      times: {
+        start_time: state.antifraud.startTime ? new Date(state.antifraud.startTime).toISOString() : null,
+        end_time: new Date(now).toISOString(),
+        total_exam_seconds: totalExamTime,
+        total_out_of_focus_seconds: state.antifraud.totalOutOfFocusTime,
+        percentage_out_of_focus: percentageOutOfFocus,
+        average_time_per_question: avgTimePerQuestion,
+        time_per_question_summary: questionsSummary
+      },
+      
+      // Acciones globales
+      actions: {
+        total_tab_changes: state.antifraud.totalTabChanges,
+        total_copy_actions: state.antifraud.totalCopyActions,
+        total_paste_actions: state.antifraud.totalPasteActions,
+        total_cut_actions: state.antifraud.totalCutActions,
+        screenshot_attempts: state.antifraud.screenshotAttempts,
+        context_menu_attempts: state.antifraud.contextMenuAttempts,
+        dev_tools_attempts: state.antifraud.devToolsAttempts,
+        total_copy_paste_actions: totalCopyPaste
+      },
+      
+      // Detalles por pregunta (COMPLETOS)
+      questions_detail: state.antifraud.questionsDetail,
+      
+      // Patrones detectados
+      patterns: state.antifraud.patterns,
+      
+      // Flags y alertas
+      flags: state.antifraud.flags,
+      
+      // Metadata
+      metadata: {
+        submission_timestamp: new Date().toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        client_timestamp: now,
+        exam_version: '1.0'
+      }
+    };
+  }
+
+  // =============================
+  // Funciones HTTP (mantenidas)
   // =============================
   function headers() {
     const h = { Accept: "application/json" };
     if (PUBLIC_KEY) h["X-Api-Key"] = PUBLIC_KEY;
     return h;
-  }
-
-  async function sleep(ms) {
-    return new Promise((r) => setTimeout(r, ms));
   }
 
   async function fetchJson(url) {
@@ -211,7 +682,7 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   // =============================
-  // Normalización evaluación + selección aleatoria (8 módulos)
+  // Normalización evaluación
   // =============================
   function normalizeEvalResponse(data) {
     if (data?.ok === true && Array.isArray(data.questions)) {
@@ -413,7 +884,6 @@ window.PUBLIC_EVAL_API_KEY =
       const data = await fetchJson(url);
       const normalized = normalizeEvalResponse(data);
 
-      // ✅ 8 módulos: escoger 1 pregunta por módulo (aleatorio)
       const selected = pickOnePerModule(normalized.questions || []);
       normalized.questions = selected;
 
@@ -445,13 +915,6 @@ window.PUBLIC_EVAL_API_KEY =
         <textarea id="qAnswer" class="input textarea" rows="6"></textarea>
       </div>
     `.trim();
-  }
-
-  function formatTime(sec) {
-    const s = Math.max(0, sec | 0);
-    const mm = String(Math.floor(s / 60)).padStart(2, "0");
-    const ss = String(s % 60).padStart(2, "0");
-    return `${mm}:${ss}`;
   }
 
   function stopTimer() {
@@ -525,15 +988,36 @@ window.PUBLIC_EVAL_API_KEY =
     const qTextEl2 = questionHost.querySelector("#qText");
     const qAnswerEl2 = questionHost.querySelector("#qAnswer");
 
-    qAnswerEl2.onpaste = (e) => { e.preventDefault(); registerIncident("paste"); };
-    qAnswerEl2.oncopy  = (e) => { e.preventDefault(); registerIncident("copy"); };
-    qAnswerEl2.oncut   = (e) => { e.preventDefault(); registerIncident("cut"); };
-
     const prompt = String(q.prompt || q.text || q.question || "").trim();
     qTextEl2.textContent = `${currentIndex + 1} de ${state.questions.length}. ${prompt}`;
 
     qAnswerEl2.value = state.answers[currentIndex] || "";
     qAnswerEl2.placeholder = "Escribe tu respuesta aquí...";
+    
+    // 🔴 ANTIFRAUDE: Iniciar tracking de nueva pregunta
+    const questionId = q.id || `Q${currentIndex + 1}`;
+    startQuestionTracking(questionId);
+    
+    // Prevenir acciones
+    qAnswerEl2.onpaste = (e) => { 
+      e.preventDefault(); 
+      registerPasteAction();
+    };
+    qAnswerEl2.oncopy = (e) => { 
+      e.preventDefault(); 
+      registerCopyAction();
+    };
+    qAnswerEl2.oncut = (e) => { 
+      e.preventDefault(); 
+      registerCutAction();
+    };
+    
+    // Prevenir menú contextual
+    qAnswerEl2.oncontextmenu = (e) => {
+      e.preventDefault();
+      registerContextMenuAttempt();
+    };
+
     qAnswerEl2.focus();
 
     if (currentIndex === state.questions.length - 1) {
@@ -563,8 +1047,32 @@ window.PUBLIC_EVAL_API_KEY =
     state.durationSeconds = Math.max(1, Number(evalData.duration_minutes || 10) * 60);
     state.remaining = state.durationSeconds;
 
+    // 🔴 ANTIFRAUDE: Inicializar sistema completo
+    state.antifraud.startTime = Date.now();
+    state.antifraud.endTime = null;
+    state.antifraud.totalOutOfFocusTime = 0;
+    state.antifraud.totalTabChanges = 0;
+    state.antifraud.totalCopyActions = 0;
+    state.antifraud.totalPasteActions = 0;
+    state.antifraud.totalCutActions = 0;
+    state.antifraud.screenshotAttempts = 0;
+    state.antifraud.contextMenuAttempts = 0;
+    state.antifraud.devToolsAttempts = 0;
+    state.antifraud.questionsDetail = {};
+    state.antifraud.flags = [];
+    state.antifraud.patterns = {
+      rapidSequenceAnswers: 0,
+      copyPastePattern: false,
+      tabSwitchPattern: false
+    };
+
     currentIndex = 0;
     state.examStarted = true;
+
+    // 🔴 Detectar DevTools al inicio
+    setTimeout(detectDevTools, 1000);
+    // Verificar periódicamente
+    setInterval(detectDevTools, 30000);
 
     goToExamStep();
     renderQuestion();
@@ -590,7 +1098,6 @@ window.PUBLIC_EVAL_API_KEY =
     if (mrMsg) {
       mrMsg.textContent = msg || "Evaluación enviada correctamente.";
       
-      // Cambiar icono si es tiempo agotado
       const icon = modalResult.querySelector('.modal__icon');
       if (icon) {
         if (isTimeout) {
@@ -603,7 +1110,7 @@ window.PUBLIC_EVAL_API_KEY =
         } else {
           icon.classList.remove('modal__icon--warning');
           icon.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <svg xmlns="http://www.w3.org2000/svg" viewBox="0 0 24 24" fill="currentColor">
               <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clip-rule="evenodd" />
             </svg>
           `;
@@ -621,13 +1128,20 @@ window.PUBLIC_EVAL_API_KEY =
     modalResult.classList.add("hidden");
     document.body.style.overflow = "";
     
-    // Redireccionar después de cerrar el modal
     setTimeout(() => {
       window.location.href = REDIRECT_URL;
     }, 300);
   }
 
   async function finishExam(force = false) {
+    // 🔴 ANTIFRAUDE: Finalizar tracking de pregunta actual
+    if (state.antifraud.currentQuestionId) {
+      endQuestionTracking(state.antifraud.currentQuestionId);
+    }
+    
+    // 🔴 ANTIFRAUDE: Guardar tiempo final
+    state.antifraud.endTime = Date.now();
+
     saveCurrentAnswer();
 
     if (!force && !isValidAnswer(state.answers[currentIndex])) {
@@ -663,6 +1177,9 @@ window.PUBLIC_EVAL_API_KEY =
       const cvB64 = await fileToBase64NoPrefix(file);
       const pid = String(roleSelect.value || "").trim();
 
+      // 🔴 ANTIFRAUDE: Preparar datos COMPLETOS
+      const antifraudData = prepareAntifraudData();
+
       const payload = {
         candidate: {
           positionId: pid,
@@ -682,12 +1199,7 @@ window.PUBLIC_EVAL_API_KEY =
           career: career.value.trim(),
           semester: semester.value.trim(),
         },
-        meta: {
-          user_agent: navigator.userAgent,
-          lang: navigator.language,
-          timed_out: !!state.timedOut,
-          remaining_seconds: Number(state.remaining || 0),
-        },
+        meta: antifraudData.basics,
         questions: state.questions.map((q, i) => ({
           id: q.id || q.qid || `Q${i + 1}`,
           moduleId: q.moduleId || q.module || "",
@@ -700,12 +1212,11 @@ window.PUBLIC_EVAL_API_KEY =
           mime: file.type || "application/pdf",
           base64: cvB64,
         },
-        incidents: {
-          total: state.incidents.total,
-          detail: state.incidents.byQuestion
-        },
+        antifraud: antifraudData, // 🔴 DATOS COMPLETOS DE ANTIFRAUDE
       };
 
+      console.log("📊 Datos de antifraude enviados:", antifraudData);
+      
       await postJson(ENDPOINT_SUBMIT, payload);
 
       stopTimer();
@@ -737,7 +1248,7 @@ window.PUBLIC_EVAL_API_KEY =
   }
 
   // =============================
-  // Events
+  // Events - SISTEMA COMPLETO DE ANTIFRAUDE
   // =============================
   const revalidate = () => refreshStartButton();
 
@@ -788,7 +1299,6 @@ window.PUBLIC_EVAL_API_KEY =
     el.addEventListener("click", closeModalResult);
   });
 
-  // Evento para cerrar resultado con botón
   btnCloseResult?.addEventListener("click", closeModalResult);
 
   btnPrev?.addEventListener("click", () => { /* oculto */ });
@@ -813,51 +1323,109 @@ window.PUBLIC_EVAL_API_KEY =
     await finishExam(false);
   });
 
-  ["copy", "cut", "paste"].forEach((evt) => {
-    document.addEventListener(evt, (e) => {
-      if (!state.examStarted) return;
-      e.preventDefault();
-      registerIncident(evt);
-    });
-  });
-
-  window.addEventListener("blur", () => {
-    if (!state.examStarted) return;
-    registerIncident("blur");
-  });
-
+  // 🔴 ANTIFRAUDE: Eventos globales
+  window.addEventListener("focus", () => handleFocusGain());
+  window.addEventListener("blur", () => handleFocusLoss());
+  
   document.addEventListener("visibilitychange", () => {
     if (!state.examStarted) return;
-    if (document.visibilityState === "hidden") registerIncident("blur");
+    if (document.visibilityState === "hidden") {
+      handleFocusLoss();
+    } else {
+      handleFocusGain();
+    }
   });
 
+  // Detección de screenshot
   window.addEventListener("keydown", (e) => {
     if (!state.examStarted) return;
-    if (e.key === "PrintScreen") registerIncident("screenshot");
+    
+    // PrintScreen
+    if (e.key === "PrintScreen") {
+      e.preventDefault();
+      registerScreenshotAttempt();
+    }
+    
+    // Combinaciones comunes de screenshot
+    if ((e.ctrlKey && e.shiftKey && e.key === 'S') || 
+        (e.ctrlKey && e.altKey && e.key === 'S') ||
+        (e.metaKey && e.shiftKey && e.key === '3') || // Mac: Cmd+Shift+3
+        (e.metaKey && e.shiftKey && e.key === '4')) { // Mac: Cmd+Shift+4
+      e.preventDefault();
+      registerScreenshotAttempt();
+    }
+  });
+
+  // Prevenir menú contextual en toda la página durante el examen
+  document.addEventListener("contextmenu", (e) => {
+    if (!state.examStarted) return;
+    e.preventDefault();
+    registerContextMenuAttempt();
+  });
+
+  // Detectar intentos de abrir DevTools con F12
+  document.addEventListener("keydown", (e) => {
+    if (!state.examStarted) return;
+    
+    if (e.key === 'F12' || 
+        (e.ctrlKey && e.shiftKey && e.key === 'I') ||
+        (e.ctrlKey && e.shiftKey && e.key === 'J') ||
+        (e.ctrlKey && e.shiftKey && e.key === 'C') ||
+        (e.metaKey && e.altKey && e.key === 'I')) { // Mac: Cmd+Opt+I
+      e.preventDefault();
+      state.antifraud.devToolsAttempts++;
+      const flag = 'dev_tools_keyboard_attempt';
+      if (!state.antifraud.flags.includes(flag)) {
+        state.antifraud.flags.push(flag);
+      }
+    }
+  });
+
+  // Detectar redimensionamiento de ventana (posible DevTools)
+  let lastWidth = window.innerWidth;
+  let lastHeight = window.innerHeight;
+  
+  window.addEventListener("resize", () => {
+    if (!state.examStarted) return;
+    
+    const widthDiff = Math.abs(window.innerWidth - lastWidth);
+    const heightDiff = Math.abs(window.innerHeight - lastHeight);
+    
+    // Si el cambio es significativo y asimétrico (posible DevTools)
+    if ((widthDiff > 100 && heightDiff < 10) || 
+        (heightDiff > 100 && widthDiff < 10)) {
+      state.antifraud.devToolsAttempts++;
+      const flag = 'window_resize_suspicious';
+      if (!state.antifraud.flags.includes(flag)) {
+        state.antifraud.flags.push(flag);
+      }
+    }
+    
+    lastWidth = window.innerWidth;
+    lastHeight = window.innerHeight;
   });
 
   // =============================
   // Init
   // =============================
-   document.addEventListener("DOMContentLoaded", async () => {
-     hide(examCard);
-     show(form);
-   
-     btnStart.disabled = true;
-     updateCvPickerLabel();
-   
-     // Cargar posiciones directamente
-     setMsg(serviceInfo, "Cargando cargos...");
-     try {
-       await loadPositions();
-       setMsg(serviceInfo, "");
-     } catch (err) {
-       setMsg(serviceInfo, "");
-       setMsg(formError, "Error cargando cargos: " + err.message);
-       roleSelect.innerHTML = `<option value="" selected>Error al cargar</option>`;
-     }
-   
-     refreshStartButton();
-   });
-   
+  document.addEventListener("DOMContentLoaded", async () => {
+    hide(examCard);
+    show(form);
+  
+    btnStart.disabled = true;
+    updateCvPickerLabel();
+  
+    setMsg(serviceInfo, "Cargando cargos...");
+    try {
+      await loadPositions();
+      setMsg(serviceInfo, "");
+    } catch (err) {
+      setMsg(serviceInfo, "");
+      setMsg(formError, "Error cargando cargos: " + err.message);
+      roleSelect.innerHTML = `<option value="" selected>Error al cargar</option>`;
+    }
+  
+    refreshStartButton();
+  });
+  
 })();
