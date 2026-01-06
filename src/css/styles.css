@@ -5,17 +5,20 @@
   --muted:#64748b;
   --line:#e2e8f0;
   --req:#ef4444;
+  --primary2:#6d28d9;
 }
 
 *{box-sizing:border-box}
 html,body{height:100%}
+
 body{
   margin:0;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
   color:var(--text);
-  background: radial-gradient(1200px 500px at 40% -10%, rgba(186,230,253,.35), transparent 60%),
-              radial-gradient(900px 500px at 90% 0%, rgba(216,180,254,.25), transparent 55%),
-              var(--bg);
+  background:
+    radial-gradient(1200px 500px at 40% -10%, rgba(186,230,253,.35), transparent 60%),
+    radial-gradient(900px 500px at 90% 0%, rgba(216,180,254,.25), transparent 55%),
+    var(--bg);
 }
 
 .hidden,.is-hidden{display:none !important}
@@ -33,33 +36,77 @@ body{
   padding:28px;
 }
 
-.top{
-  margin-bottom:18px;
+/* =========================
+   TOPBAR (LabCore)
+   ========================= */
+.topbar{
+  width: min(1100px, 92vw);
+  margin: 22px auto 14px;
 }
 
-.brand{
+.topbar-inner{
+  background: rgba(255,255,255,.65);
+  border: 1px solid rgba(226,232,240,.75);
+  border-radius: 22px;
+  padding: 14px 18px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, .08);
+  display: flex;
+  justify-content: center;
+}
+
+.brandline{
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: nowrap;
+  text-align: left;
+}
+
+.logo-badge{
+  width:56px;
+  height:56px;
+  border-radius:18px;
+  display:grid;
+  place-items:center;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(226,232,240,.9);
+  overflow:hidden;
+  flex: 0 0 auto;
+}
+
+.brand-logo{
+  width:42px;
+  height:42px;
+  object-fit:contain;
+  display:block;
+}
+
+.brandcopy{
   display:flex;
-  align-items:center;
-  gap:14px;
-  padding:12px 18px;
-  border-radius:22px;
-  background:rgba(255,255,255,.65);
-  border:1px solid rgba(226,232,240,.75);
+  flex-direction:column;
+  gap:4px;
+  align-items:flex-start;
 }
 
-.brand__logo{width:42px;height:42px;object-fit:contain}
-.brand__name{
-  font-weight:700;
-  letter-spacing:.3px;
-  font-size:1.1rem;
-  color:rgba(15,23,42,.55);
+.brand-text{
+  height:28px;
+  width:auto;
+  max-width:360px;
+  object-fit:contain;
+  display:block;
 }
-.brand__sub{
+
+.brand-subtitle{
   font-size:1.05rem;
-  font-weight:600;
+  font-weight:650;
   color:#64748b;
+  line-height:1.15;
 }
 
+/* =========================
+   Titles
+   ========================= */
 .title{
   margin:0;
   font-size:3rem;
@@ -71,9 +118,11 @@ body{
   color:#475569;
   font-weight:600;
 }
-
 .req{color:var(--req)}
 
+/* =========================
+   Form layout
+   ========================= */
 .grid{
   display:grid;
   grid-template-columns: repeat(4, 1fr);
@@ -185,6 +234,7 @@ body{
   box-shadow:0 0 0 4px rgba(196,181,253,.25);
 }
 
+/* Alerts */
 .alert{
   border:1px solid;
   border-radius:16px;
@@ -192,13 +242,11 @@ body{
   font-weight:700;
   line-height:1.25;
 }
-
 .alert--danger{
   border-color:#fecaca;
   background:#fef2f2;
   color:#991b1b;
 }
-
 .alert--info{
   border-color:rgba(148,163,184,.55);
   background:rgba(241,245,249,.75);
@@ -212,7 +260,6 @@ body{
   align-items:flex-start;
   gap:16px;
 }
-
 .timerBox{min-width:220px}
 .timer{
   border:1px solid rgba(226,232,240,.95);
@@ -222,13 +269,8 @@ body{
 }
 .timer__label{color:#64748b;font-weight:800}
 .timer__value{font-size:1.9rem;font-weight:900}
-
-.timer.is-warn{
-  box-shadow:0 0 0 4px rgba(245,158,11,.18);
-}
-.timer.is-danger{
-  box-shadow:0 0 0 4px rgba(239,68,68,.18);
-}
+.timer.is-warn{box-shadow:0 0 0 4px rgba(245,158,11,.18)}
+.timer.is-danger{box-shadow:0 0 0 4px rgba(239,68,68,.18)}
 
 .timeHint{
   margin-top:6px;
@@ -258,9 +300,7 @@ body{
   gap:12px;
   margin-top:16px;
 }
-.examActions--center{
-  justify-content:center;
-}
+.examActions--center{justify-content:center}
 
 /* Modal */
 .modal{position:fixed; inset:0; display:grid; place-items:center; z-index:50}
@@ -277,6 +317,7 @@ body{
 .modal__list{margin:8px 0 14px; color:#334155; font-weight:650}
 .modal__actions{display:flex; justify-content:flex-end; gap:10px}
 
+/* Responsive */
 @media (max-width: 920px){
   .grid{grid-template-columns: repeat(2, 1fr)}
   .title{font-size:2.2rem}
@@ -285,116 +326,6 @@ body{
   .grid{grid-template-columns: 1fr}
   .title{font-size:2rem}
 }
-
-/* =========================
-   TOPBAR (LabCore imágenes)
-   ========================= */
-/* 🔒 BLOQUEO TOTAL: evita logos gigantes aunque otro CSS los pise */
-.logo-badge{
-  width:56px !important;
-  height:56px !important;
-  overflow:hidden !important;
-  display:grid !important;
-  place-items:center !important;
-}
-
-.logo-badge img,
-.brand-logo{
-  width:42px !important;
-  height:42px !important;
-  max-width:42px !important;
-  max-height:42px !important;
-  object-fit:contain !important;
-  display:block !important;
-}
-
-.brandcopy img,
-.brand-text{
-  height:26px !important;
-  max-height:26px !important;
-  width:auto !important;
-  max-width:380px !important;
-  object-fit:contain !important;
-  display:block !important;
-}
-
-/* =========================
-   TOPBAR (centrado + logo a la izquierda)
-   ========================= */
-
-.topbar{
-  width: min(1100px, 92vw);
-  margin: 22px auto 14px;
-}
-
-.topbar-inner{
-  background: rgba(255,255,255,.65);
-  border: 1px solid rgba(226,232,240,.75);
-  border-radius: 22px;
-  padding: 14px 18px;
-  box-shadow: 0 18px 48px rgba(15, 23, 42, .08);
-
-  /* ✅ centra el bloque completo */
-  display: flex;
-  justify-content: center;
-}
-
-.brandline{
-  /* ✅ logo a la izquierda y texto a la derecha */
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 14px;
-
-  /* ✅ que no se rompa raro */
-  flex-wrap: nowrap;
-  text-align: left;
-}
-
-/* Caja del logo */
-.logo-badge{
-  width: 56px;
-  height: 56px;
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  background: rgba(255,255,255,.72);
-  border: 1px solid rgba(226,232,240,.9);
-  overflow: hidden;
-  flex: 0 0 auto;
-}
-
-.brand-logo{
-  width: 42px;
-  height: 42px;
-  object-fit: contain;
-  display: block;
-}
-
-/* Texto */
-.brandcopy{
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-}
-
-.brand-text{
-  height: 28px;
-  width: auto;
-  max-width: 360px;
-  object-fit: contain;
-  display: block;
-}
-
-.brand-subtitle{
-  font-size: 1.05rem;
-  font-weight: 650;
-  color: #64748b;
-  line-height: 1.15;
-}
-
-/* Responsive: en pantallas MUY estrechas lo deja en fila y reduce */
 @media (max-width: 420px){
   .logo-badge{ width: 50px; height: 50px; border-radius: 16px; }
   .brand-logo{ width: 38px; height: 38px; }
