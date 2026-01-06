@@ -508,3 +508,26 @@ select.input{
 .btn.primary{
   height: 54px;
 }
+
+/* =========================
+   Botón Next con mismo estilo que primary
+   ========================= */
+.btn.btn--ghost#btnNext {
+  color: #111827;
+  background: linear-gradient(
+    135deg,
+    #d7d7d7 0%,
+    #f3f3f3 22%,
+    #d6b46b 52%,
+    #c7c7c7 78%,
+    #9a9a9a 100%
+  );
+  border: 1px solid rgba(180, 160, 110, .55);
+  box-shadow: 0 16px 30px rgba(15, 23, 42, .12);
+  min-width: 160px;
+}
+
+.btn.btn--ghost#btnNext:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
