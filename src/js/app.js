@@ -22,6 +22,9 @@ window.PUBLIC_EVAL_API_KEY =
   const ENDPOINT_EVAL = `${API_BASE}/api/gh/public/eval`; // ?position_id=xxx
   const ENDPOINT_SUBMIT = `${API_BASE}/api/gh/public/submit`;
 
+  // URL para redirección después del envío
+  const REDIRECT_URL = "https://www.google.com";
+
   // Si existe meta, también se puede tomar de ahí
   const metaKey =
     document
@@ -77,6 +80,7 @@ window.PUBLIC_EVAL_API_KEY =
   // Modal resultado
   const modalResult = $("modalResult");
   const mrMsg = $("mrMsg");
+  const btnCloseResult = $("btnCloseResult");
 
   // =============================
   // State
@@ -567,29 +571,60 @@ window.PUBLIC_EVAL_API_KEY =
     startTimer();
   }
 
+  // =============================
+  // Modal Functions
+  // =============================
   function openModalInfo() {
     if (!modalInfo) return;
     modalInfo.classList.remove("hidden", "is-hidden");
-    modalInfo.classList.add("open");
+    document.body.style.overflow = "hidden";
   }
 
   function closeModalInfo() {
     if (!modalInfo) return;
-    modalInfo.classList.remove("open");
     modalInfo.classList.add("hidden");
+    document.body.style.overflow = "";
   }
 
-  function openModalResult(msg) {
-    if (mrMsg) mrMsg.textContent = msg || "";
+  function openModalResult(msg, isTimeout = false) {
+    if (mrMsg) {
+      mrMsg.textContent = msg || "Evaluación enviada correctamente.";
+      
+      // Cambiar icono si es tiempo agotado
+      const icon = modalResult.querySelector('.modal__icon');
+      if (icon) {
+        if (isTimeout) {
+          icon.classList.add('modal__icon--warning');
+          icon.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+              <path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 9a.75.75 0 00-1.5 0v4.5a.75.75 0 001.5 0V9zm-1.5 7.5a.75.75 0 001.5 0 .75.75 0 00-1.5 0z" clip-rule="evenodd" />
+            </svg>
+          `;
+        } else {
+          icon.classList.remove('modal__icon--warning');
+          icon.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+              <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clip-rule="evenodd" />
+            </svg>
+          `;
+        }
+      }
+    }
+    
     if (!modalResult) return;
     modalResult.classList.remove("hidden", "is-hidden");
-    modalResult.classList.add("open");
+    document.body.style.overflow = "hidden";
   }
 
   function closeModalResult() {
     if (!modalResult) return;
-    modalResult.classList.remove("open");
     modalResult.classList.add("hidden");
+    document.body.style.overflow = "";
+    
+    // Redireccionar después de cerrar el modal
+    setTimeout(() => {
+      window.location.href = REDIRECT_URL;
+    }, 300);
   }
 
   async function finishExam(force = false) {
@@ -674,7 +709,10 @@ window.PUBLIC_EVAL_API_KEY =
       await postJson(ENDPOINT_SUBMIT, payload);
 
       stopTimer();
-      openModalResult(state.timedOut ? "Tiempo finalizado. Evaluación enviada." : "Evaluación enviada.");
+      openModalResult(
+        state.timedOut ? "Tiempo finalizado. Evaluación enviada." : "Evaluación enviada correctamente.",
+        state.timedOut
+      );
     } catch (err) {
       const msg = String(err?.message || "");
       const code = String(err?.code || "");
@@ -687,7 +725,7 @@ window.PUBLIC_EVAL_API_KEY =
 
       if (looksLikeLimit) {
         stopTimer();
-        openModalResult("Has excedido el máximo permitido: 2 evaluaciones por año.");
+        openModalResult("Has excedido el máximo permitido: 2 evaluaciones por año.", false);
         return;
       }
 
@@ -741,6 +779,7 @@ window.PUBLIC_EVAL_API_KEY =
     beginExam();
   });
 
+  // Cerrar modales
   modalInfo?.querySelectorAll('[data-close="1"]').forEach((el) => {
     el.addEventListener("click", closeModalInfo);
   });
@@ -748,6 +787,9 @@ window.PUBLIC_EVAL_API_KEY =
   modalResult?.querySelectorAll('[data-close="1"]').forEach((el) => {
     el.addEventListener("click", closeModalResult);
   });
+
+  // Evento para cerrar resultado con botón
+  btnCloseResult?.addEventListener("click", closeModalResult);
 
   btnPrev?.addEventListener("click", () => { /* oculto */ });
 
