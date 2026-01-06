@@ -5,7 +5,7 @@
   --muted:#64748b;
   --line:#e2e8f0;
   --req:#ef4444;
-  --primary2:#6d28d9;
+  --primary2:#abacbde4;
   --control-h: 56px;      /* altura fija para inputs/select/file */
   --control-pad-x: 16px;
 }
@@ -414,7 +414,7 @@ select.input{
   justify-content:space-between;
   align-items:center;
   padding:20px 24px 18px;
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  background: linear-gradient(135deg, #4f4aae 20%, #807592 80%);
   color:white;
 }
 
@@ -488,7 +488,7 @@ select.input{
 }
 
 .modal__content b{
-  color:#7c3aed;
+  color:#abacbde4;
   font-weight:700;
 }
 
@@ -533,7 +533,7 @@ select.input{
   min-width:140px;
   height:48px;
   font-size:1rem;
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  background: linear-gradient(135deg, #4f4aae 20%, #807592 80%);
   border: none;
   color: white;
   box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
