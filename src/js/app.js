@@ -1,238 +1,364 @@
 /* LabCore - Evaluación de ingreso (front)
    - Carga cargos (positions)
    - Precarga evaluación (questions) por cargo
-   - Habilita "Iniciar prueba" SOLO cuando el formulario es válido + hay preguntas
+   - Botón "Iniciar prueba" deshabilitado hasta que el formulario esté OK + evaluación OK
    - Step 1: Datos del postulante
-   - Step 2: Solo pregunta + textarea de respuesta (responsive)
+   - Step 2: Solo evaluación (pregunta + respuesta)
 */
 
+// 🔐 API KEY pública para evaluación (se puede sobreescribir por <meta name="PUBLIC_EVAL_API_KEY" ...>)
+window.PUBLIC_EVAL_API_KEY =
+  window.PUBLIC_EVAL_API_KEY ||
+  "pt_eval_c21c285a5edf133c981b961910f2c26140712e5a6efbda98";
+
 (() => {
+  "use strict";
+
   // =============================
   // Config
   // =============================
   const API_BASE = "https://protrack-49um.onrender.com";
-
   const ENDPOINT_POSITIONS = `${API_BASE}/api/gh/public/positions`;
   const ENDPOINT_EVAL = `${API_BASE}/api/gh/public/eval`; // ?position_id=xxx
   const ENDPOINT_SUBMIT = `${API_BASE}/api/gh/public/submit`;
 
-  // ✅ API KEY (public eval) - NO LO TOQUES
+  // Si existe meta, también se puede tomar de ahí
   const metaKey =
-    document.querySelector('meta[name="public-eval-api-key"]')?.content?.trim() || "";
+    document
+      .querySelector('meta[name="PUBLIC_EVAL_API_KEY"]')
+      ?.getAttribute("content") || "";
   const PUBLIC_KEY = String(window.PUBLIC_EVAL_API_KEY || metaKey || "").trim();
 
   // =============================
   // DOM
   // =============================
-  const form = document.getElementById("candidateForm");
-  const examCard = document.getElementById("examCard");
+  const $ = (id) => document.getElementById(id);
 
-  const uiMsg = document.getElementById("serviceInfo");
-  const formError = document.getElementById("formError");
-  const examError = document.getElementById("examError");
+  const form = $("candidateForm");
 
-  const firstName = document.getElementById("firstName");
-  const lastName = document.getElementById("lastName");
-  const cedula = document.getElementById("cedula");
-  const roleSelect = document.getElementById("role");
-  const email = document.getElementById("email");
-  const phone = document.getElementById("phone");
-  const github = document.getElementById("github");
-  const linkedin = document.getElementById("linkedin");
-  const university = document.getElementById("university");
-  const career = document.getElementById("career");
-  const semester = document.getElementById("semester");
-  const acceptPolicy = document.getElementById("acceptPolicy");
+  const firstName = $("firstName");
+  const lastName = $("lastName");
+  const cedula = $("cedula");
+  const roleSelect = $("role");
 
-  const cvFile = document.getElementById("cvFile");
-  const cvPicker = document.getElementById("cvPicker");
+  const email = $("email");
+  const phone = $("phone");
+  const github = $("github");
+  const linkedin = $("linkedin");
 
-  const btnStart = document.getElementById("btnStart");
-  const btnContinue = document.getElementById("btnContinue");
+  const university = $("university");
+  const career = $("career");
+  const semester = $("semester");
 
-  const questionHost = document.getElementById("questionHost");
+  const cvFile = $("cvFile");
+  const cvPicker = $("cvPicker");
 
-  const btnPrev = document.getElementById("btnPrev");
-  const btnNext = document.getElementById("btnNext");
-  const btnSubmit = document.getElementById("btnSubmit");
+  const acceptPolicy = $("acceptPolicy");
 
-  const incidentsEl = document.getElementById("incidents");
+  const btnStart = $("btnStart");
+  const formError = $("formError");
+  const serviceInfo = $("serviceInfo");
 
-  const timerBox = document.getElementById("timerBox");
-  const timerEl = document.getElementById("timer");
-  const timeHint = document.getElementById("timeHint");
+  const examCard = $("examCard");
+  const timerBox = $("timerBox");
+  const timerEl = $("timer");
+  const timeHint = $("timeHint");
+  const examError = $("examError");
 
-  const modalInfo = document.getElementById("modalInfo");
-  const modalResult = document.getElementById("modalResult");
-  const mrMsg = document.getElementById("mrMsg");
+  const questionHost = $("questionHost");
+  const btnPrev = $("btnPrev");     // se mantiene en DOM (hidden por HTML)
+  const btnNext = $("btnNext");
+  const btnSubmit = $("btnSubmit");
+
+  // Modal info
+  const modalInfo = $("modalInfo");
+  const btnContinue = $("btnContinue");
+
+  // Modal resultado
+  const modalResult = $("modalResult");
+  const mrMsg = $("mrMsg");
 
   // =============================
-  // Helpers UI
+  // State
   // =============================
-  const hide = (el) => el && el.classList.add("hidden");
-  const show = (el) => el && el.classList.remove("hidden");
-  const isHidden = (el) => !el || el.classList.contains("hidden") || el.classList.contains("is-hidden");
+  const state = {
+    evalByPosition: new Map(),
+    questions: [],
+    answers: [],
+    durationSeconds: 10 * 60,
+    remaining: 10 * 60,
+    timerHandle: null,
+    examStarted: false,
+    timedOut: false,
 
-  const setMsg = (el, msg) => {
-    if (!el) return;
-    if (!msg) {
-      el.textContent = "";
-      hide(el);
-      return;
+    incidents: {
+      total: 0,
+      byQuestion: {}
     }
-    el.textContent = msg;
-    show(el);
   };
 
-  function openModal(el) {
+  let currentIndex = 0;
+
+  // =============================
+  // Utils UI
+  // =============================
+  function setMsg(el, msg) {
+    if (!el) return;
+    el.textContent = msg || "";
+    if (msg) el.classList.remove("hidden", "is-hidden");
+    else el.classList.add("hidden");
+  }
+
+  function show(el) {
     if (!el) return;
     el.classList.remove("hidden");
-    el.setAttribute("aria-hidden", "false");
+    el.classList.remove("is-hidden");
   }
-  function closeModal(el) {
+
+  function hide(el) {
     if (!el) return;
     el.classList.add("hidden");
-    el.setAttribute("aria-hidden", "true");
+    el.classList.add("is-hidden");
   }
 
-  // close modals by backdrop/buttons
-  document.addEventListener("click", (e) => {
-    const t = e.target;
-    if (t?.dataset?.close === "1") {
-      closeModal(modalInfo);
-      closeModal(modalResult);
+  // =============================
+  // Incidents (NO se muestran al candidato)
+  // =============================
+  function ensureIncidentSlot(index) {
+    if (!state.incidents.byQuestion[index]) {
+      state.incidents.byQuestion[index] = {
+        copy: 0,
+        paste: 0,
+        cut: 0,
+        blur: 0,
+        screenshot: 0
+      };
     }
-  });
+  }
 
-  // =============================
-  // Normalizers (✅ FIX submit 500 por +57)
-  // =============================
-  const _digits = (v) => String(v || "").replace(/\D+/g, "");
-  function normalizePhone10(raw) {
-    let d = _digits(raw);
-    // Colombia: allow +57 / 57 prefix
-    if (d.length === 12 && d.startsWith("57")) d = d.slice(2);
-    // keep last 10 digits if longer
-    if (d.length > 10) d = d.slice(-10);
-    return d;
+  function registerIncident(type) {
+    state.incidents.total++;
+    ensureIncidentSlot(currentIndex);
+    if (state.incidents.byQuestion[currentIndex][type] !== undefined) {
+      state.incidents.byQuestion[currentIndex][type]++;
+    }
+    // contador oculto en UI
+    const el = document.getElementById("incidents");
+    if (el) el.textContent = String(state.incidents.total);
   }
 
   // =============================
-  // Networking
+  // HTTP + Retry + Warmup (Render sleep)
   // =============================
-  function headers(extra = {}) {
-    const h = {
-      Accept: "application/json",
-      ...extra,
-    };
-    if (PUBLIC_KEY) h["X-API-Key"] = PUBLIC_KEY; // ✅ FIX 401
+  function headers() {
+    const h = { Accept: "application/json" };
+    if (PUBLIC_KEY) h["X-Api-Key"] = PUBLIC_KEY;
     return h;
   }
 
-  async function fetchJson(url, opts = {}) {
-    const res = await fetch(url, {
-      ...opts,
-      headers: headers(opts.headers || {}),
-    });
-
-    const ct = res.headers.get("content-type") || "";
-    const isJson = ct.includes("application/json");
-    const body = isJson ? await res.json().catch(() => null) : await res.text().catch(() => "");
-
-    if (!res.ok) {
-      const msg = (body && body.error) ? body.error : (typeof body === "string" ? body : `HTTP ${res.status}`);
-      const err = new Error(msg);
-      err.status = res.status;
-      err.body = body;
-      throw err;
-    }
-    return body;
+  async function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
   }
 
-  async function wakeRender() {
-    // ping simple al root para "despertar" render si está dormido
-    try {
-      await fetch(API_BASE, { method: "GET" });
-    } catch (_) {}
-  }
-
-  async function withRetry(fn, tries = 7, delayMs = 900) {
-    let last;
+  async function withRetry(fn, tries = 12) {
+    let lastErr = null;
     for (let i = 0; i < tries; i++) {
       try {
         return await fn();
       } catch (e) {
-        last = e;
-        await new Promise((r) => setTimeout(r, delayMs));
+        lastErr = e;
+        const wait = i === 0 ? 600 : Math.min(12000, 900 * Math.pow(1.55, i));
+        await sleep(wait);
       }
     }
-    throw last;
+    throw lastErr || new Error("No se pudo completar la operación.");
+  }
+
+  async function warmUpService() {
+    // Dispara requests "opacos" (no-cors) para despertar Render sin bloquear por CORS
+    try {
+      await fetch(API_BASE, { method: "GET", mode: "no-cors", cache: "no-store" });
+    } catch (_) {}
+    try {
+      await fetch(ENDPOINT_POSITIONS, { method: "GET", mode: "no-cors", cache: "no-store" });
+    } catch (_) {}
+  }
+
+  async function fetchJson(url) {
+    const res = await fetch(url, { method: "GET", headers: headers(), cache: "no-store" });
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+
+    if (!ct.includes("application/json")) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`Respuesta no JSON (${res.status}). ${txt.slice(0, 160)}`);
+    }
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      const msg = data?.msg || data?.message || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  async function postJson(url, payload) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { ...headers(), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    let data = null;
+
+    if (ct.includes("application/json")) {
+      data = await res.json().catch(() => null);
+    } else {
+      const txt = await res.text().catch(() => "");
+      data = { ok: false, msg: txt?.slice(0, 220) || `HTTP ${res.status}` };
+    }
+
+    if (!res.ok || !data || data.ok === false) {
+      const code = String(data?.code || data?.error_code || "").trim();
+      const msg = String(data?.msg || data?.message || `HTTP ${res.status}`).trim();
+      const err = new Error(msg || "Error");
+      err.code = code;
+      err.raw = data;
+      throw err;
+    }
+
+    return data;
   }
 
   // =============================
-  // CV picker UX
+  // Normalización evaluación + selección aleatoria (8 módulos)
+  // =============================
+  function normalizeEvalResponse(data) {
+    if (data?.ok === true && Array.isArray(data.questions)) {
+      return {
+        ok: true,
+        questions: data.questions,
+        duration_minutes: Number(data.duration_minutes || 10),
+        raw: data,
+      };
+    }
+
+    if (data?.eval && Array.isArray(data.eval.questions)) {
+      return {
+        ok: true,
+        questions: data.eval.questions,
+        duration_minutes: Number(data.eval.duration_minutes || 10),
+        raw: data,
+      };
+    }
+
+    if (data?.ok === true && Array.isArray(data.modules)) {
+      const flat = [];
+      for (const m of data.modules) {
+        const moduleId = String(m?.id || m?.moduleId || m?.code || "").trim();
+        const moduleName = String(m?.name || m?.moduleName || "").trim();
+        const qs = Array.isArray(m?.questions) ? m.questions : [];
+        for (const q of qs) {
+          flat.push({
+            id: q?.id || q?.qid || "",
+            moduleId,
+            moduleName,
+            prompt: q?.text || q?.prompt || q?.question || "",
+          });
+        }
+      }
+      return {
+        ok: true,
+        questions: flat,
+        duration_minutes: Number(data.duration_minutes || 10),
+        raw: data,
+      };
+    }
+
+    return { ok: false, questions: [], duration_minutes: 10, raw: data };
+  }
+
+  function shuffleInPlace(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function pickOnePerModule(flatQuestions) {
+    const by = new Map();
+    for (const q of flatQuestions || []) {
+      const mid = String(q?.moduleId || q?.module || "M0");
+      if (!by.has(mid)) by.set(mid, []);
+      by.get(mid).push(q);
+    }
+
+    const picked = [];
+    for (const [mid, list] of by.entries()) {
+      if (!list.length) continue;
+      const idx = Math.floor(Math.random() * list.length);
+      const q = list[idx];
+      picked.push({
+        id: q.id || "",
+        moduleId: q.moduleId || mid,
+        moduleName: q.moduleName || "",
+        prompt: String(q.prompt || q.text || q.question || "").trim(),
+      });
+    }
+
+    shuffleInPlace(picked);
+    return picked;
+  }
+
+  // =============================
+  // CV picker
   // =============================
   function updateCvPickerLabel() {
     if (!cvPicker) return;
     const f = cvFile?.files?.[0];
-    if (!f) {
-      cvPicker.textContent = "Haz clic para adjuntar tu PDF";
-      return;
-    }
-    cvPicker.textContent = `PDF: ${f.name}`;
+    cvPicker.textContent = f ? f.name : "Haz clic para adjuntar tu PDF";
   }
 
-  function bindCvPicker() {
-    if (!cvPicker || !cvFile) return;
-    cvPicker.addEventListener("click", () => cvFile.click());
-    cvPicker.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        cvFile.click();
-      }
-    });
-    cvFile.addEventListener("change", () => {
-      updateCvPickerLabel();
-      refreshStartButton();
+  function fileToBase64NoPrefix(file) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => {
+        const res = String(fr.result || "");
+        const parts = res.split("base64,");
+        resolve(parts.length > 1 ? parts[1] : "");
+      };
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
     });
   }
 
   // =============================
-  // Form validity
+  // Validation
   // =============================
-  function isEmailOk(v) {
-    const s = String(v || "").trim();
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-  }
-
-  function isUrlOk(v) {
-    const s = String(v || "").trim();
-    if (!s) return true;
-    try {
-      new URL(s);
-      return true;
-    } catch (_) {
-      return false;
-    }
+  function hasPdfSelected() {
+    const f = cvFile?.files?.[0];
+    if (!f) return false;
+    const mime = String(f.type || "").toLowerCase();
+    const name = String(f.name || "").toLowerCase();
+    if (mime === "application/pdf") return true;
+    if (name.endsWith(".pdf")) return true;
+    return false;
   }
 
   function isFormOk() {
     if (!firstName?.value.trim()) return false;
     if (!lastName?.value.trim()) return false;
+    if (!cedula?.value.trim()) return false;
 
-    const cc = _digits(cedula?.value || "");
-    if (!cc) return false;
+    const pid = roleSelect?.value ? String(roleSelect.value).trim() : "";
+    if (!pid) return false;
 
-    if (!roleSelect?.value) return false;
-
-    if (!isEmailOk(email?.value)) return false;
-
+    if (!email?.value.trim()) return false;
     if (!phone?.value.trim()) return false;
-    const phone10 = normalizePhone10(phone.value);
-    if (phone10.length !== 10) return false; // ✅ FIX: no deja mandar +57
+    if (!github?.value.trim()) return false;
 
-    if (!github?.value.trim() || !isUrlOk(github.value)) return false;
-    if (!isUrlOk(linkedin?.value)) return false;
+    if (!cvFile || cvFile.files.length === 0) return false;
 
     if (!university?.value.trim()) return false;
     if (!career?.value.trim()) return false;
@@ -240,436 +366,456 @@
 
     if (!acceptPolicy?.checked) return false;
 
-    const f = cvFile?.files?.[0];
-    if (!f) return false;
-    if (f.type !== "application/pdf") return false;
-    if (f.size > 8 * 1024 * 1024) return false;
+    const evalData = state.evalByPosition.get(pid);
+    if (!evalData?.ok || !evalData.questions?.length) return false;
 
     return true;
   }
 
   function refreshStartButton() {
     if (!btnStart) return;
-    btnStart.disabled = true;
-
-    // Debe haber cargos reales
-    const optCount = roleSelect?.querySelectorAll("option")?.length || 0;
-    if (optCount <= 1) return;
-
-    // Debe cumplir el form
-    if (!isFormOk()) return;
-
-    btnStart.disabled = false;
+    const ok = isFormOk();
+    btnStart.disabled = !ok;
+    if (ok) setMsg(formError, "");
   }
 
-  [
-    firstName, lastName, cedula, roleSelect, email, phone, github, linkedin,
-    university, career, semester, acceptPolicy
-  ].forEach((el) => el && el.addEventListener("input", refreshStartButton));
-  roleSelect && roleSelect.addEventListener("change", refreshStartButton);
-  acceptPolicy && acceptPolicy.addEventListener("change", refreshStartButton);
+  function normalizeText(s) {
+    return String(s || "").replace(/\s+/g, " ").trim();
+  }
+
+  function isValidAnswer(txt) {
+    const s = normalizeText(txt);
+    if (!s) return false;
+    if (/^[\.\,\-\_\:\;\!\?\(\)\[\]\{\}\s]+$/.test(s)) return false;
+    const letters = (s.match(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g) || []).length;
+    if (letters < 6) return false;
+    if (s.length < 20) return false;
+    return true;
+  }
 
   // =============================
-  // Load positions (✅ FIX 401)
+  // Load positions + preload eval
   // =============================
   async function loadPositions() {
-    // deja placeholder
+    setMsg(formError, "");
     roleSelect.innerHTML = `<option value="" selected>Cargando...</option>`;
-    const data = await fetchJson(ENDPOINT_POSITIONS, { method: "GET" });
 
-    const items = Array.isArray(data) ? data : (data?.items || []);
-    roleSelect.innerHTML = `<option value="">Selecciona un cargo</option>`;
+    const data = await fetchJson(ENDPOINT_POSITIONS);
 
-    for (const it of items) {
-      const id = it.id || it.position_id || it.value || "";
-      const name = it.name || it.title || it.label || id;
+    const positions = Array.isArray(data)
+      ? data
+      : Array.isArray(data.positions)
+      ? data.positions
+      : Array.isArray(data.data)
+      ? data.data
+      : [];
+
+    roleSelect.innerHTML = `<option value="" disabled selected>Selecciona un cargo</option>`;
+
+    for (const p of positions) {
+      const id = String(p.position_id || p.id || "").trim();
+      const name = String(p.position_name || p.name || id || "").trim();
       if (!id) continue;
-      const op = document.createElement("option");
-      op.value = id;
-      op.textContent = name;
-      roleSelect.appendChild(op);
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = name || id;
+      roleSelect.appendChild(opt);
+    }
+  }
+
+  async function preloadEvalForPosition(positionId) {
+    const pid = String(positionId || "").trim();
+    if (!pid) return;
+
+    setMsg(formError, "");
+    try {
+      const url = `${ENDPOINT_EVAL}?position_id=${encodeURIComponent(pid)}`;
+      const data = await fetchJson(url);
+      const normalized = normalizeEvalResponse(data);
+
+      // ✅ 8 módulos: escoger 1 pregunta por módulo (aleatorio)
+      const selected = pickOnePerModule(normalized.questions || []);
+      normalized.questions = selected;
+
+      state.evalByPosition.set(pid, normalized);
+
+      if (!normalized.ok) {
+        setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
+      } else if (!normalized.questions?.length) {
+        setMsg(formError, "La evaluación existe, pero no tiene preguntas.");
+      }
+    } catch (err) {
+      state.evalByPosition.set(pid, { ok: false, questions: [], duration_minutes: 10 });
+      setMsg(formError, `No se pudo cargar la evaluación: ${err.message}`);
+    } finally {
+      refreshStartButton();
     }
   }
 
   // =============================
-  // Exam runtime
+  // Exam UI
   // =============================
-  const EXAM_MINUTES = 10;
-  const WARN_AT_SECONDS = 180; // 3 minutos
+  function ensureQuestionUI() {
+    if (!questionHost) return;
+    if (questionHost.querySelector("#qText") && questionHost.querySelector("#qAnswer")) return;
 
-  let exam = {
-    startedAt: null,
-    endsAt: null,
-    timerId: null,
-    timeLeft: EXAM_MINUTES * 60,
-    incidents: 0,
-    positionId: null,
-
-    questions: [],
-    qIndex: 0,
-
-    // respuestas
-    answers: {}, // { qid: "texto" }
-  };
-
-  function setIncidents(n) {
-    exam.incidents = n;
-    if (incidentsEl) incidentsEl.textContent = String(n);
+    questionHost.innerHTML = `
+      <div class="question">
+        <div id="qText" class="question__text"></div>
+        <textarea id="qAnswer" class="input textarea" rows="6"></textarea>
+      </div>
+    `.trim();
   }
 
-  function tickTimer() {
-    const now = Date.now();
-    const left = Math.max(0, Math.floor((exam.endsAt - now) / 1000));
-    exam.timeLeft = left;
+  function formatTime(sec) {
+    const s = Math.max(0, sec | 0);
+    const mm = String(Math.floor(s / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return `${mm}:${ss}`;
+  }
 
-    const mm = String(Math.floor(left / 60)).padStart(2, "0");
-    const ss = String(left % 60).padStart(2, "0");
-    if (timerEl) timerEl.textContent = `${mm}:${ss}`;
+  function stopTimer() {
+    if (state.timerHandle) clearInterval(state.timerHandle);
+    state.timerHandle = null;
+  }
 
-    // estilo warning/danger
-    const timerBoxInner = timerEl?.closest(".timer");
-    if (timerBoxInner) {
-      timerBoxInner.classList.remove("is-warn", "is-danger");
-      if (left <= WARN_AT_SECONDS && left > 30) timerBoxInner.classList.add("is-warn");
-      if (left <= 30) timerBoxInner.classList.add("is-danger");
-    }
+  function updateTimerUI() {
+    if (timerEl) timerEl.textContent = formatTime(state.remaining);
 
-    if (timeHint) {
-      timeHint.classList.remove("hidden", "is-danger");
-      if (left <= WARN_AT_SECONDS && left > 30) {
-        timeHint.textContent = "Quedan 3 minutos. Finaliza tus respuestas.";
-        show(timeHint);
-      } else if (left <= 30 && left > 0) {
-        timeHint.textContent = "Últimos segundos…";
-        timeHint.classList.add("is-danger");
-        show(timeHint);
-      } else {
-        hide(timeHint);
+    if (timerBox) {
+      const timerWrap = timerBox.querySelector(".timer");
+      if (timerWrap) {
+        timerWrap.classList.remove("is-warn", "is-danger");
+        if (state.remaining <= 180 && state.remaining > 60) timerWrap.classList.add("is-warn");
+        if (state.remaining <= 60) timerWrap.classList.add("is-danger");
       }
     }
 
-    if (left <= 0) {
-      stopTimer();
-      finishExam(true);
+    if (timeHint) {
+      if (state.remaining === 180) {
+        timeHint.classList.remove("hidden");
+        timeHint.classList.remove("is-danger");
+        timeHint.textContent = "Quedan 3 minutos.";
+      } else if (state.remaining === 60) {
+        timeHint.classList.remove("hidden");
+        timeHint.classList.add("is-danger");
+        timeHint.textContent = "Queda 1 minuto.";
+      } else if (state.remaining === 0) {
+        timeHint.classList.remove("hidden");
+        timeHint.classList.add("is-danger");
+        timeHint.textContent = "Tiempo finalizado.";
+      }
     }
   }
 
   function startTimer() {
-    exam.startedAt = Date.now();
-    exam.endsAt = exam.startedAt + EXAM_MINUTES * 60 * 1000;
+    stopTimer();
+    state.timedOut = false;
     if (timerBox) show(timerBox);
-    tickTimer();
-    exam.timerId = setInterval(tickTimer, 1000);
+    updateTimerUI();
+
+    state.timerHandle = setInterval(async () => {
+      state.remaining -= 1;
+      updateTimerUI();
+
+      if (state.remaining <= 0) {
+        stopTimer();
+        state.timedOut = true;
+        await finishExam(true).catch(() => {});
+      }
+    }, 1000);
   }
 
-  function stopTimer() {
-    if (exam.timerId) clearInterval(exam.timerId);
-    exam.timerId = null;
+  function goToExamStep() {
+    hide(form);
+    show(examCard);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  // =============================
-  // Questions + Modules (ya lo tienes)
-  // =============================
-  function shuffle(arr) {
-    const a = arr.slice();
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }
-
-  function pickOnePerModule(questions) {
-    // Agrupa por module
-    const byMod = new Map();
-    for (const q of questions) {
-      const mod = q.module || q.category || q.section || "General";
-      if (!byMod.has(mod)) byMod.set(mod, []);
-      byMod.get(mod).push(q);
-    }
-    // Escoge 1 por módulo
-    const picked = [];
-    for (const [_, list] of byMod.entries()) {
-      const sel = list[Math.floor(Math.random() * list.length)];
-      picked.push(sel);
-    }
-    return shuffle(picked);
-  }
-
-  async function loadEval(positionId) {
-    exam.positionId = positionId;
-
-    const url = `${ENDPOINT_EVAL}?position_id=${encodeURIComponent(positionId)}`;
-    const data = await fetchJson(url, { method: "GET" });
-
-    const all = Array.isArray(data) ? data : (data?.questions || []);
-    if (!all.length) throw new Error("No hay preguntas configuradas para este cargo.");
-
-    // ✅ tu lógica: 1 por módulo (8 módulos => 8 preguntas)
-    const picked = pickOnePerModule(all);
-
-    exam.questions = picked;
-    exam.qIndex = 0;
-    exam.answers = {};
-
-    return picked;
-  }
-
-  function getCurrentQ() {
-    return exam.questions[exam.qIndex] || null;
+  function saveCurrentAnswer() {
+    const ta = questionHost?.querySelector("#qAnswer");
+    state.answers[currentIndex] = String(ta?.value || "");
   }
 
   function renderQuestion() {
-    const q = getCurrentQ();
+    ensureQuestionUI();
+    const q = state.questions[currentIndex];
     if (!q) return;
 
-    const qid = q.id || q.qid || `${exam.qIndex + 1}`;
-    const text = q.text || q.question || q.prompt || "";
+    const qTextEl2 = questionHost.querySelector("#qText");
+    const qAnswerEl2 = questionHost.querySelector("#qAnswer");
 
-    questionHost.innerHTML = `
-      <div class="question">
-        <div class="question__text">${exam.qIndex + 1} de ${exam.questions.length}. ${escapeHtml(text)}</div>
-        <textarea id="answerBox" class="input textarea" placeholder="Escribe tu respuesta aquí..."></textarea>
-      </div>
-    `;
+    qAnswerEl2.onpaste = (e) => { e.preventDefault(); registerIncident("paste"); };
+    qAnswerEl2.oncopy  = (e) => { e.preventDefault(); registerIncident("copy"); };
+    qAnswerEl2.oncut   = (e) => { e.preventDefault(); registerIncident("cut"); };
 
-    const answerBox = document.getElementById("answerBox");
-    answerBox.value = exam.answers[qid] || "";
+    const prompt = String(q.prompt || q.text || q.question || "").trim();
+    qTextEl2.textContent = `${currentIndex + 1} de ${state.questions.length}. ${prompt}`;
 
-    answerBox.addEventListener("input", () => {
-      exam.answers[qid] = answerBox.value;
-      updateNavButtons();
-    });
+    qAnswerEl2.value = state.answers[currentIndex] || "";
+    qAnswerEl2.placeholder = "Escribe tu respuesta aquí...";
+    qAnswerEl2.focus();
 
-    // bloquear copy/paste
-    ["copy", "cut", "paste"].forEach((evt) => {
-      answerBox.addEventListener(evt, (e) => {
-        e.preventDefault();
-        setIncidents(exam.incidents + 1);
-      });
-    });
-
-    updateNavButtons();
-  }
-
-  function updateNavButtons() {
-    const q = getCurrentQ();
-    if (!q) return;
-
-    const qid = q.id || q.qid || `${exam.qIndex + 1}`;
-    const ans = String(exam.answers[qid] || "").trim();
-
-    // ✅ No permitir avanzar si no hay respuesta válida
-    const isValidAnswer = validateAnswer(ans);
-
-    // prev visible si index > 0
-    if (btnPrev) {
-      if (exam.qIndex > 0) show(btnPrev);
-      else hide(btnPrev);
-      btnPrev.disabled = exam.qIndex <= 0;
+    if (currentIndex === state.questions.length - 1) {
+      hide(btnNext);
+      show(btnSubmit);
+    } else {
+      show(btnNext);
+      hide(btnSubmit);
     }
 
-    // si no es la última pregunta => next
-    if (btnNext) {
-      if (exam.qIndex < exam.questions.length - 1) {
-        show(btnNext);
-        btnNext.disabled = !isValidAnswer;
-      } else {
-        hide(btnNext);
-      }
-    }
-
-    // submit solo en la última
-    if (btnSubmit) {
-      if (exam.qIndex === exam.questions.length - 1) {
-        show(btnSubmit);
-        btnSubmit.disabled = !isValidAnswer;
-      } else {
-        hide(btnSubmit);
-      }
-    }
-  }
-
-  function validateAnswer(ans) {
-    // no permitir "." "..." "...." etc
-    if (!ans) return false;
-    const onlyDots = ans.replace(/\./g, "").trim() === "";
-    if (onlyDots) return false;
-    if (ans.length < 5) return false; // mínimo razonable
-    return true;
-  }
-
-  function escapeHtml(str) {
-    return String(str || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  // =============================
-  // Submit
-  // =============================
-  async function toBase64(file) {
-    return await new Promise((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(String(r.result || "").split(",")[1] || "");
-      r.onerror = reject;
-      r.readAsDataURL(file);
-    });
-  }
-
-  async function finishExam(byTimeout = false) {
     setMsg(examError, "");
+  }
 
-    // valida todas respuestas antes de enviar
-    for (let i = 0; i < exam.questions.length; i++) {
-      const q = exam.questions[i];
-      const qid = q.id || q.qid || `${i + 1}`;
-      const ans = String(exam.answers[qid] || "").trim();
-      if (!validateAnswer(ans)) {
-        exam.qIndex = i;
+  function beginExam() {
+    const pid = String(roleSelect.value || "").trim();
+    const evalData = state.evalByPosition.get(pid);
+
+    if (!evalData?.ok || !evalData.questions?.length) {
+      setMsg(formError, "No se pudo cargar la evaluación para ese cargo.");
+      refreshStartButton();
+      return;
+    }
+
+    state.questions = Array.isArray(evalData.questions) ? evalData.questions.slice(0) : [];
+    state.answers = new Array(state.questions.length).fill("");
+
+    state.durationSeconds = Math.max(1, Number(evalData.duration_minutes || 10) * 60);
+    state.remaining = state.durationSeconds;
+
+    currentIndex = 0;
+    state.examStarted = true;
+
+    goToExamStep();
+    renderQuestion();
+    startTimer();
+  }
+
+  function openModalInfo() {
+    if (!modalInfo) return;
+    modalInfo.classList.remove("hidden", "is-hidden");
+    modalInfo.classList.add("open");
+  }
+
+  function closeModalInfo() {
+    if (!modalInfo) return;
+    modalInfo.classList.remove("open");
+    modalInfo.classList.add("hidden");
+  }
+
+  function openModalResult(msg) {
+    if (mrMsg) mrMsg.textContent = msg || "";
+    if (!modalResult) return;
+    modalResult.classList.remove("hidden", "is-hidden");
+    modalResult.classList.add("open");
+  }
+
+  function closeModalResult() {
+    if (!modalResult) return;
+    modalResult.classList.remove("open");
+    modalResult.classList.add("hidden");
+  }
+
+  async function finishExam(force = false) {
+    saveCurrentAnswer();
+
+    if (!force && !isValidAnswer(state.answers[currentIndex])) {
+      setMsg(examError, "Responde de forma completa antes de continuar.");
+      return;
+    }
+
+    if (!force) {
+      const empty = state.answers.findIndex((a) => !isValidAnswer(a));
+      if (empty !== -1) {
+        currentIndex = empty;
         renderQuestion();
-        setMsg(examError, "Debes responder la pregunta antes de continuar.");
+        setMsg(examError, `Falta responder correctamente la pregunta ${empty + 1}.`);
         return;
       }
     }
 
-    const f = cvFile?.files?.[0];
-    const cv_b64 = f ? await toBase64(f) : "";
+    const file = cvFile?.files?.[0];
+    if (!file) {
+      setMsg(examError, "Falta adjuntar el CV.");
+      return;
+    }
+    if (!hasPdfSelected()) {
+      setMsg(examError, "El CV debe ser PDF.");
+      return;
+    }
 
-    const payload = {
-      position_id: exam.positionId,
-      by_timeout: !!byTimeout,
-      incidents: exam.incidents,
-      started_at: exam.startedAt,
-      ended_at: Date.now(),
-      time_seconds: EXAM_MINUTES * 60 - exam.timeLeft,
-
-      candidate: {
-        firstName: firstName.value.trim(),
-        lastName: lastName.value.trim(),
-        cedula: _digits(cedula.value),
-        email: email.value.trim(),
-        phone: normalizePhone10(phone.value), // ✅ FIX +57 => 10 dígitos
-        github: github.value.trim(),
-        linkedin: linkedin.value.trim(),
-        university: university.value.trim(),
-        career: career.value.trim(),
-        semester: semester.value.trim(),
-      },
-
-      hv: {
-        filename: f?.name || "",
-        content_type: f?.type || "",
-        size: f?.size || 0,
-        base64: cv_b64 || "",
-      },
-
-      answers: exam.questions.map((q, idx) => {
-        const qid = q.id || q.qid || `${idx + 1}`;
-        return {
-          id: qid,
-          text: q.text || q.question || q.prompt || "",
-          module: q.module || q.category || q.section || "",
-          answer: String(exam.answers[qid] || ""),
-        };
-      }),
-    };
+    btnSubmit.disabled = true;
+    const originalText = btnSubmit.textContent;
+    btnSubmit.textContent = "Enviando...";
 
     try {
-      btnSubmit && (btnSubmit.disabled = true);
+      const cvB64 = await fileToBase64NoPrefix(file);
+      const pid = String(roleSelect.value || "").trim();
 
-      await fetchJson(ENDPOINT_SUBMIT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const payload = {
+        candidate: {
+          positionId: pid,
+          roleId: pid,
+          role: pid,
 
-      mrMsg.textContent = "Evaluación enviada correctamente. Gracias.";
-      openModal(modalResult);
+          first_name: firstName.value.trim(),
+          last_name: lastName.value.trim(),
+          cedula: cedula.value.trim(),
 
-      // reset
+          email: email.value.trim(),
+          phone: phone.value.trim(),
+          github: github.value.trim(),
+          linkedin: (linkedin?.value || "").trim(),
+
+          university: university.value.trim(),
+          career: career.value.trim(),
+          semester: semester.value.trim(),
+        },
+        meta: {
+          user_agent: navigator.userAgent,
+          lang: navigator.language,
+          timed_out: !!state.timedOut,
+          remaining_seconds: Number(state.remaining || 0),
+        },
+        questions: state.questions.map((q, i) => ({
+          id: q.id || q.qid || `Q${i + 1}`,
+          moduleId: q.moduleId || q.module || "",
+          moduleName: q.moduleName || "",
+          prompt: q.prompt || q.text || q.question || "",
+          answer: normalizeText(state.answers[i] || ""),
+        })),
+        cv: {
+          name: file.name || "cv.pdf",
+          mime: file.type || "application/pdf",
+          base64: cvB64,
+        },
+        incidents: {
+          total: state.incidents.total,
+          detail: state.incidents.byQuestion
+        },
+      };
+
+      await postJson(ENDPOINT_SUBMIT, payload);
+
       stopTimer();
-      hide(examCard);
-      show(form);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (e) {
-      setMsg(examError, e?.message || "Error guardando en BD");
+      openModalResult(state.timedOut ? "Tiempo finalizado. Evaluación enviada." : "Evaluación enviada.");
+    } catch (err) {
+      const msg = String(err?.message || "");
+      const code = String(err?.code || "");
+      const looksLikeLimit =
+        code.toUpperCase().includes("MAX") ||
+        /max/i.test(msg) ||
+        /exced/i.test(msg) ||
+        /2\s*evalu/i.test(msg) ||
+        /año/i.test(msg);
+
+      if (looksLikeLimit) {
+        stopTimer();
+        openModalResult("Has excedido el máximo permitido: 2 evaluaciones por año.");
+        return;
+      }
+
+      setMsg(examError, msg || "No se pudo enviar la evaluación.");
     } finally {
-      btnSubmit && (btnSubmit.disabled = false);
+      btnSubmit.disabled = false;
+      btnSubmit.textContent = originalText;
     }
   }
 
   // =============================
   // Events
   // =============================
-  btnPrev && btnPrev.addEventListener("click", () => {
-    if (exam.qIndex <= 0) return;
-    exam.qIndex -= 1;
-    renderQuestion();
-  });
+  const revalidate = () => refreshStartButton();
 
-  btnNext && btnNext.addEventListener("click", () => {
-    const q = getCurrentQ();
-    if (!q) return;
+  [firstName, lastName, cedula, email, phone, github, linkedin, university, career, semester]
+    .forEach((el) => el?.addEventListener("input", revalidate));
 
-    const qid = q.id || q.qid || `${exam.qIndex + 1}`;
-    const ans = String(exam.answers[qid] || "").trim();
-    if (!validateAnswer(ans)) {
-      setMsg(examError, "Debes responder antes de continuar.");
-      return;
-    }
+  acceptPolicy?.addEventListener("change", revalidate);
 
-    if (exam.qIndex < exam.questions.length - 1) {
-      exam.qIndex += 1;
-      renderQuestion();
+  cvPicker?.addEventListener("click", () => cvFile?.click());
+  cvPicker?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      cvFile?.click();
     }
   });
 
-  btnSubmit && btnSubmit.addEventListener("click", () => finishExam(false));
-
-  btnStart && btnStart.addEventListener("click", () => {
-    setMsg(formError, "");
-    openModal(modalInfo);
+  cvFile?.addEventListener("change", () => {
+    updateCvPickerLabel();
+    refreshStartButton();
   });
 
-  btnContinue && btnContinue.addEventListener("click", async () => {
-    closeModal(modalInfo);
+  roleSelect?.addEventListener("change", async () => {
+    const pid = String(roleSelect.value || "").trim();
+    await preloadEvalForPosition(pid);
+    refreshStartButton();
+  });
 
-    // seguridad extra
+  btnStart?.addEventListener("click", (e) => {
+    e.preventDefault();
     if (!isFormOk()) {
-      setMsg(formError, "Completa todos los campos obligatorios antes de iniciar.");
-      refreshStartButton();
+      setMsg(formError, "Completa todos los campos obligatorios (*) y adjunta tu PDF.");
+      return;
+    }
+    openModalInfo();
+  });
+
+  btnContinue?.addEventListener("click", () => {
+    closeModalInfo();
+    beginExam();
+  });
+
+  modalInfo?.querySelectorAll('[data-close="1"]').forEach((el) => {
+    el.addEventListener("click", closeModalInfo);
+  });
+
+  modalResult?.querySelectorAll('[data-close="1"]').forEach((el) => {
+    el.addEventListener("click", closeModalResult);
+  });
+
+  btnPrev?.addEventListener("click", () => { /* oculto */ });
+
+  btnNext?.addEventListener("click", () => {
+    if (!state.examStarted) return;
+    saveCurrentAnswer();
+
+    if (!isValidAnswer(state.answers[currentIndex])) {
+      setMsg(examError, "Responde de forma completa antes de continuar.");
       return;
     }
 
-    try {
-      setMsg(formError, "");
-      setMsg(uiMsg, "");
-
-      // carga evaluación
-      await loadEval(roleSelect.value);
-
-      // ir a examen
-      hide(form);
-      show(examCard);
-
-      // reset incidents
-      setIncidents(0);
-
-      // timer
-      startTimer();
-
-      // primera pregunta
+    if (currentIndex < state.questions.length - 1) {
+      currentIndex += 1;
       renderQuestion();
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (e) {
-      setMsg(formError, e?.message || "No fue posible iniciar la evaluación.");
-      show(form);
-      hide(examCard);
     }
+  });
+
+  btnSubmit?.addEventListener("click", async () => {
+    if (!state.examStarted) return;
+    await finishExam(false);
+  });
+
+  ["copy", "cut", "paste"].forEach((evt) => {
+    document.addEventListener(evt, (e) => {
+      if (!state.examStarted) return;
+      e.preventDefault();
+      registerIncident(evt);
+    });
+  });
+
+  window.addEventListener("blur", () => {
+    if (!state.examStarted) return;
+    registerIncident("blur");
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (!state.examStarted) return;
+    if (document.visibilityState === "hidden") registerIncident("blur");
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (!state.examStarted) return;
+    if (e.key === "PrintScreen") registerIncident("screenshot");
   });
 
   // =============================
@@ -679,27 +825,24 @@
     hide(examCard);
     show(form);
 
-    show(btnStart);
     btnStart.disabled = true;
-
-    bindCvPicker();
     updateCvPickerLabel();
 
-    // ✅ Cargar cargos con reintentos (por si Render está dormido)
-    try {
-      setMsg(uiMsg, "Cargando cargos...");
-      await wakeRender();
+    setMsg(serviceInfo, "Activando servicio...");
+    await warmUpService();
 
+    try {
       await withRetry(async () => {
         await loadPositions();
         const optionsCount = roleSelect?.querySelectorAll("option")?.length || 0;
         if (optionsCount <= 1) throw new Error("Cargos aún no disponibles");
-      }, 7);
+      }, 14);
 
-      setMsg(uiMsg, "");
-    } catch (e) {
-      setMsg(uiMsg, "");
+      setMsg(serviceInfo, "");
+    } catch (_) {
+      setMsg(serviceInfo, "");
       setMsg(formError, "El servicio está iniciando. Espera unos segundos y recarga la página.");
+      roleSelect.innerHTML = `<option value="" selected>Error al cargar</option>`;
     }
 
     refreshStartButton();
@@ -707,7 +850,7 @@
 
   document.addEventListener("visibilitychange", async () => {
     if (document.visibilityState === "visible") {
-      await wakeRender();
+      await warmUpService();
     }
   });
 })();
