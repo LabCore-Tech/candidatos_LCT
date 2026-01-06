@@ -189,6 +189,11 @@
   <div id="modalInfo" class="modal hidden" aria-hidden="true">
     <div class="modal__backdrop" data-close="1"></div>
     <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="miTitle">
+      <!-- Botón X de cerrar -->
+      <button class="modal__close" type="button" data-close="1" aria-label="Cerrar">
+        ×
+      </button>
+      
       <h3 id="miTitle">Antes de iniciar</h3>
         <p>
           Esta prueba tiene una duración aproximada de <b>10 minutos</b>. 
@@ -196,12 +201,11 @@
           La prueba se iniciará de manera inmediata.
         </p>
       <div class="modal__actions">
-        <button class="btn btn--ghost" type="button" data-close="1">Cancelar</button>
+        <!-- Se eliminó el botón Cancelar -->
         <button id="btnContinue" class="btn primary" type="button">Continuar</button>
       </div>
     </div>
   </div>
-
   <!-- Modal result -->
   <div id="modalResult" class="modal hidden" aria-hidden="true">
     <div class="modal__backdrop" data-close="1"></div>
