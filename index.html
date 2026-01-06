@@ -185,7 +185,7 @@
 
   </main>
 
-  <!-- Modal info -->
+  <!-- Modal info - Mejorado -->
   <div id="modalInfo" class="modal hidden" aria-hidden="true">
     <div class="modal__backdrop" data-close="1"></div>
     <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="miTitle">
@@ -211,20 +211,31 @@
       </div>
     </div>
   </div>
-      
-      <div class="modal__actions">
-        <button id="btnContinue" class="btn primary" type="button">Continuar</button>
-      </div>
-    </div>
-  </div>
-  <!-- Modal result -->
+
+  <!-- Modal result - Mejorado -->
   <div id="modalResult" class="modal hidden" aria-hidden="true">
     <div class="modal__backdrop" data-close="1"></div>
     <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="mrTitle">
-      <h3 id="mrTitle">Resultado</h3>
-      <p id="mrMsg"></p>
+      <!-- Cabecera con título y botón X a la derecha -->
+      <div class="modal__header">
+        <h3 id="mrTitle">Resultado</h3>
+        <!-- Botón X de cerrar - POSICIONADO A LA DERECHA -->
+        <button class="modal__close" type="button" data-close="1" aria-label="Cerrar">
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
+      
+      <div class="modal__content">
+        <div class="modal__icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <p id="mrMsg">Evaluación enviada correctamente.</p>
+      </div>
+      
       <div class="modal__actions">
-        <button class="btn primary" type="button" data-close="1">Cerrar</button>
+        <button id="btnCloseResult" class="btn primary" type="button">Cerrar</button>
       </div>
     </div>
   </div>
@@ -234,4 +245,3 @@
 </body>
 
 </html>
-
