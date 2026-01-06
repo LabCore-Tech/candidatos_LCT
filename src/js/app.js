@@ -160,30 +160,6 @@ window.PUBLIC_EVAL_API_KEY =
     return new Promise((r) => setTimeout(r, ms));
   }
 
-  async function withRetry(fn, tries = 12) {
-    let lastErr = null;
-    for (let i = 0; i < tries; i++) {
-      try {
-        return await fn();
-      } catch (e) {
-        lastErr = e;
-        const wait = i === 0 ? 600 : Math.min(12000, 900 * Math.pow(1.55, i));
-        await sleep(wait);
-      }
-    }
-    throw lastErr || new Error("No se pudo completar la operación.");
-  }
-
-  async function warmUpService() {
-    // Dispara requests "opacos" (no-cors) para despertar Render sin bloquear por CORS
-    try {
-      await fetch(API_BASE, { method: "GET", mode: "no-cors", cache: "no-store" });
-    } catch (_) {}
-    try {
-      await fetch(ENDPOINT_POSITIONS, { method: "GET", mode: "no-cors", cache: "no-store" });
-    } catch (_) {}
-  }
-
   async function fetchJson(url) {
     const res = await fetch(url, { method: "GET", headers: headers(), cache: "no-store" });
     const ct = (res.headers.get("content-type") || "").toLowerCase();
@@ -821,36 +797,25 @@ window.PUBLIC_EVAL_API_KEY =
   // =============================
   // Init
   // =============================
-  document.addEventListener("DOMContentLoaded", async () => {
-    hide(examCard);
-    show(form);
-
-    btnStart.disabled = true;
-    updateCvPickerLabel();
-
-    setMsg(serviceInfo, "Activando servicio...");
-    await warmUpService();
-
-    try {
-      await withRetry(async () => {
-        await loadPositions();
-        const optionsCount = roleSelect?.querySelectorAll("option")?.length || 0;
-        if (optionsCount <= 1) throw new Error("Cargos aún no disponibles");
-      }, 14);
-
-      setMsg(serviceInfo, "");
-    } catch (_) {
-      setMsg(serviceInfo, "");
-      setMsg(formError, "El servicio está iniciando. Espera unos segundos y recarga la página.");
-      roleSelect.innerHTML = `<option value="" selected>Error al cargar</option>`;
-    }
-
-    refreshStartButton();
-  });
-
-  document.addEventListener("visibilitychange", async () => {
-    if (document.visibilityState === "visible") {
-      await warmUpService();
-    }
-  });
+   document.addEventListener("DOMContentLoaded", async () => {
+     hide(examCard);
+     show(form);
+   
+     btnStart.disabled = true;
+     updateCvPickerLabel();
+   
+     // Cargar posiciones directamente
+     setMsg(serviceInfo, "Cargando cargos...");
+     try {
+       await loadPositions();
+       setMsg(serviceInfo, "");
+     } catch (err) {
+       setMsg(serviceInfo, "");
+       setMsg(formError, "Error cargando cargos: " + err.message);
+       roleSelect.innerHTML = `<option value="" selected>Error al cargar</option>`;
+     }
+   
+     refreshStartButton();
+   });
+   
 })();
