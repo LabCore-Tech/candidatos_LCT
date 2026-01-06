@@ -289,73 +289,31 @@ body{
 /* =========================
    TOPBAR (LabCore imágenes)
    ========================= */
-.topbar{
-  width: min(1100px, 92vw);
-  margin: 22px auto 14px;
-}
-
-.topbar-inner{
-  background: rgba(255,255,255,.65);
-  border: 1px solid rgba(226,232,240,.75);
-  border-radius: 22px;
-  padding: 14px 18px;
-  box-shadow: 0 18px 48px rgba(15, 23, 42, .08);
-}
-
-.brandline{
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-height: 56px;
-}
-
-/* ✅ limita el tamaño del logo grande */
+/* 🔒 BLOQUEO TOTAL: evita logos gigantes aunque otro CSS los pise */
 .logo-badge{
-  width: 56px;
-  height: 56px;
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  background: rgba(255,255,255,.72);
-  border: 1px solid rgba(226,232,240,.9);
-  overflow: hidden;
+  width:56px !important;
+  height:56px !important;
+  overflow:hidden !important;
+  display:grid !important;
+  place-items:center !important;
 }
 
+.logo-badge img,
 .brand-logo{
-  width: 42px;
-  height: 42px;
-  object-fit: contain;
-  display: block;
+  width:42px !important;
+  height:42px !important;
+  max-width:42px !important;
+  max-height:42px !important;
+  object-fit:contain !important;
+  display:block !important;
 }
 
-/* Texto en imagen + subtítulo */
-.brandcopy{
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
+.brandcopy img,
 .brand-text{
-  height: 26px;          /* ✅ controla la altura de la imagen del texto */
-  width: auto;
-  max-width: 380px;      /* ✅ evita que se estire */
-  object-fit: contain;
-  display: block;
-}
-
-.brand-subtitle{
-  font-size: 1.05rem;
-  font-weight: 650;
-  color: #64748b;
-  line-height: 1.15;
-}
-
-/* Responsive */
-@media (max-width: 560px){
-  .brandline{ gap: 10px; }
-  .logo-badge{ width: 52px; height: 52px; border-radius: 16px; }
-  .brand-logo{ width: 40px; height: 40px; }
-  .brand-text{ height: 22px; max-width: 260px; }
-  .brand-subtitle{ font-size: .98rem; }
+  height:26px !important;
+  max-height:26px !important;
+  width:auto !important;
+  max-width:380px !important;
+  object-fit:contain !important;
+  display:block !important;
 }
