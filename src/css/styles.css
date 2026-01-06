@@ -317,3 +317,87 @@ body{
   object-fit:contain !important;
   display:block !important;
 }
+
+/* =========================
+   TOPBAR (centrado + logo a la izquierda)
+   ========================= */
+
+.topbar{
+  width: min(1100px, 92vw);
+  margin: 22px auto 14px;
+}
+
+.topbar-inner{
+  background: rgba(255,255,255,.65);
+  border: 1px solid rgba(226,232,240,.75);
+  border-radius: 22px;
+  padding: 14px 18px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, .08);
+
+  /* ✅ centra el bloque completo */
+  display: flex;
+  justify-content: center;
+}
+
+.brandline{
+  /* ✅ logo a la izquierda y texto a la derecha */
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+
+  /* ✅ que no se rompa raro */
+  flex-wrap: nowrap;
+  text-align: left;
+}
+
+/* Caja del logo */
+.logo-badge{
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(226,232,240,.9);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.brand-logo{
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Texto */
+.brandcopy{
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.brand-text{
+  height: 28px;
+  width: auto;
+  max-width: 360px;
+  object-fit: contain;
+  display: block;
+}
+
+.brand-subtitle{
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: #64748b;
+  line-height: 1.15;
+}
+
+/* Responsive: en pantallas MUY estrechas lo deja en fila y reduce */
+@media (max-width: 420px){
+  .logo-badge{ width: 50px; height: 50px; border-radius: 16px; }
+  .brand-logo{ width: 38px; height: 38px; }
+  .brand-text{ height: 24px; max-width: 240px; }
+  .brand-subtitle{ font-size: .98rem; }
+}
