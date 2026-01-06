@@ -354,3 +354,157 @@ select.input{
 #formError, #serviceInfo{
   min-height:0; /* no reserva cuando está hidden */
 }
+
+/* =========================
+   FIX UI: controles fijos + 100% zoom OK
+   (Pegar al FINAL del styles.css)
+   ========================= */
+
+:root{
+  --control-h: 56px;      /* altura fija para inputs/select/file */
+  --control-pad-x: 16px;
+}
+
+/* 1) Nunca cambian de tamaño los campos */
+.input,
+select.input{
+  height: var(--control-h);
+  min-height: var(--control-h);
+  max-height: var(--control-h);
+  padding: 0 var(--control-pad-x);
+  line-height: 1.15;
+}
+
+/* icono dentro del input no debe “estirar” nada */
+.inputWrap .input{
+  padding-right: 44px; /* deja espacio para el icono */
+}
+
+/* File picker: SIEMPRE misma altura aunque el nombre sea largo */
+.filePicker{
+  height: var(--control-h);
+  min-height: var(--control-h);
+  max-height: var(--control-h);
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 var(--control-pad-x);
+  line-height: 1.15;
+
+  /* evita que el texto rompa y cambie la altura */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 2) Que se vea bien al 100% (sin forzar zoom 75%) */
+.wrap{
+  margin: 22px auto 56px; /* un poco menos aire arriba */
+}
+
+.card{
+  padding: 24px; /* baja un toque para que todo entre mejor */
+}
+
+/* Título responsive en desktop (no gigante) */
+.title{
+  font-size: clamp(2.2rem, 3.2vw, 3rem);
+}
+
+/* Grid: mantiene columnas estables y evita “brincos” */
+.grid{
+  align-items: start;
+}
+
+/* Ayuda: que los labels y ayudas no te cambien alturas raras */
+.field label{
+  min-height: 22px;
+}
+
+/* En pantallas grandes, evita “gigantismo” del topbar */
+.topbar{
+  margin: 18px auto 12px;
+}
+
+/* (Opcional) botón principal consistente */
+.btn.primary{
+  height: 54px;
+}
+
+/* =========================
+   FIX UI: controles fijos + 100% zoom OK
+   (Pegar al FINAL del styles.css)
+   ========================= */
+
+:root{
+  --control-h: 56px;      /* altura fija para inputs/select/file */
+  --control-pad-x: 16px;
+}
+
+/* 1) Nunca cambian de tamaño los campos */
+.input,
+select.input{
+  height: var(--control-h);
+  min-height: var(--control-h);
+  max-height: var(--control-h);
+  padding: 0 var(--control-pad-x);
+  line-height: 1.15;
+}
+
+/* icono dentro del input no debe “estirar” nada */
+.inputWrap .input{
+  padding-right: 44px; /* deja espacio para el icono */
+}
+
+/* File picker: SIEMPRE misma altura aunque el nombre sea largo */
+.filePicker{
+  height: var(--control-h);
+  min-height: var(--control-h);
+  max-height: var(--control-h);
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 var(--control-pad-x);
+  line-height: 1.15;
+
+  /* evita que el texto rompa y cambie la altura */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 2) Que se vea bien al 100% (sin forzar zoom 75%) */
+.wrap{
+  margin: 22px auto 56px; /* un poco menos aire arriba */
+}
+
+.card{
+  padding: 24px; /* baja un toque para que todo entre mejor */
+}
+
+/* Título responsive en desktop (no gigante) */
+.title{
+  font-size: clamp(2.2rem, 3.2vw, 3rem);
+}
+
+/* Grid: mantiene columnas estables y evita “brincos” */
+.grid{
+  align-items: start;
+}
+
+/* Ayuda: que los labels y ayudas no te cambien alturas raras */
+.field label{
+  min-height: 22px;
+}
+
+/* En pantallas grandes, evita “gigantismo” del topbar */
+.topbar{
+  margin: 18px auto 12px;
+}
+
+/* (Opcional) botón principal consistente */
+.btn.primary{
+  height: 54px;
+}
