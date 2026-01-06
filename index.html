@@ -189,19 +189,24 @@
   <div id="modalInfo" class="modal hidden" aria-hidden="true">
     <div class="modal__backdrop" data-close="1"></div>
     <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="miTitle">
-      <!-- Botón X de cerrar -->
-      <button class="modal__close" type="button" data-close="1" aria-label="Cerrar">
-        ×
-      </button>
+      <!-- Contenedor del título y botón X -->
+      <div class="modal__header">
+        <h3 id="miTitle">Antes de iniciar</h3>
+        <!-- Botón X de cerrar - POSICIONADO A LA DERECHA -->
+        <button class="modal__close" type="button" data-close="1" aria-label="Cerrar">
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
       
-      <h3 id="miTitle">Antes de iniciar</h3>
+      <div class="modal__content">
         <p>
           Esta prueba tiene una duración aproximada de <b>10 minutos</b>. 
           Se recomienda contar con este tiempo disponible para poder realizarla sin interrupciones.
           La prueba se iniciará de manera inmediata.
         </p>
+      </div>
+      
       <div class="modal__actions">
-        <!-- Se eliminó el botón Cancelar -->
         <button id="btnContinue" class="btn primary" type="button">Continuar</button>
       </div>
     </div>
