@@ -19,9 +19,10 @@ window.PUBLIC_EVAL_API_KEY =
   // Config
   // =============================
   const API_BASE = "https://protrack-49um.onrender.com";
-  const ENDPOINT_POSITIONS = `${API_BASE}/api/gh/public/positions`;
-  const ENDPOINT_EVAL = `${API_BASE}/api/gh/public/eval`;
-  const ENDPOINT_SUBMIT = `${API_BASE}/api/gh/public/submit`;
+
+  const ENDPOINT_POSITIONS = `${API_BASE}/api/public/v2/positions`;
+  const ENDPOINT_EVAL = `${API_BASE}/api/public/v2/eval`;
+  const ENDPOINT_SUBMIT = `${API_BASE}/api/public/v2/submit`;
 
   const REDIRECT_URL = "https://www.google.com";
   
@@ -685,6 +686,73 @@ window.PUBLIC_EVAL_API_KEY =
   // Normalización evaluación
   // =============================
   function normalizeEvalResponse(data) {
+    // ✅ V2: { ok:true, data: { eval: { questions:[...], duration_minutes } } }
+    if (data?.ok === true && data?.data?.eval && Array.isArray(data.data.eval.questions)) {
+      return {
+        ok: true,
+        questions: data.data.eval.questions,
+        duration_minutes: Number(data.data.eval.duration_minutes || 10),
+        raw: data,
+      };
+    }
+
+    // ✅ V2 alterno: { ok:true, data: { questions:[...] } }
+    if (data?.ok === true && data?.data && Array.isArray(data.data.questions)) {
+      return {
+        ok: true,
+        questions: data.data.questions,
+        duration_minutes: Number(data.data.duration_minutes || 10),
+        raw: data,
+      };
+    }
+
+    // V1 compat
+    if (data?.ok === true && Array.isArray(data.questions)) {
+      return {
+        ok: true,
+        questions: data.questions,
+        duration_minutes: Number(data.duration_minutes || 10),
+        raw: data,
+      };
+    }
+
+    if (data?.eval && Array.isArray(data.eval.questions)) {
+      return {
+        ok: true,
+        questions: data.eval.questions,
+        duration_minutes: Number(data.eval.duration_minutes || 10),
+        raw: data,
+      };
+    }
+
+    if (data?.ok === true && Array.isArray(data.modules)) {
+      const flat = [];
+      for (const m of data.modules) {
+        const moduleId = String(m?.id || m?.moduleId || m?.code || "").trim();
+        const moduleName = String(m?.name || m?.moduleName || "").trim();
+        const qs = Array.isArray(m?.questions) ? m.questions : [];
+        for (const q of qs) {
+          flat.push({
+            id: q?.id || q?.qid || "",
+            moduleId,
+            moduleName,
+            prompt: q?.text || q?.prompt || q?.question || "",
+          });
+        }
+      }
+      return {
+        ok: true,
+        questions: flat,
+        duration_minutes: Number(data.duration_minutes || 10),
+        raw: data,
+      };
+    }
+
+    return { ok: false, questions: [], duration_minutes: 10, raw: data };
+  }
+
+  function normalizeEvalResponse(data) {
+    
     if (data?.ok === true && Array.isArray(data.questions)) {
       return {
         ok: true,
@@ -1110,7 +1178,7 @@ window.PUBLIC_EVAL_API_KEY =
         } else {
           icon.classList.remove('modal__icon--warning');
           icon.innerHTML = `
-            <svg xmlns="http://www.w3.org2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
               <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clip-rule="evenodd" />
             </svg>
           `;
@@ -1181,11 +1249,10 @@ window.PUBLIC_EVAL_API_KEY =
       const antifraudData = prepareAntifraudData();
 
       const payload = {
-        candidate: {
-          positionId: pid,
-          roleId: pid,
-          role: pid,
+        position_id: pid,
 
+        candidate: {
+          // datos principales
           first_name: firstName.value.trim(),
           last_name: lastName.value.trim(),
           cedula: cedula.value.trim(),
@@ -1199,21 +1266,31 @@ window.PUBLIC_EVAL_API_KEY =
           career: career.value.trim(),
           semester: semester.value.trim(),
         },
-        meta: antifraudData.basics,
-        questions: state.questions.map((q, i) => ({
-          id: q.id || q.qid || `Q${i + 1}`,
-          moduleId: q.moduleId || q.module || "",
-          moduleName: q.moduleName || "",
+
+        // V2 usa "answers" (no "questions")
+        answers: state.questions.map((q, i) => ({
+          question_id: q.id || q.qid || `Q${i + 1}`,
+          module_id: q.moduleId || q.module || "",
+          module_name: q.moduleName || "",
           prompt: q.prompt || q.text || q.question || "",
           answer: normalizeText(state.answers[i] || ""),
         })),
+
+        // meta: aquí metemos antifraude completo + básicos
+        meta: {
+          ...antifraudData.basics,
+          antifraud: antifraudData,
+          source: "github_pages",
+          schema: "v2",
+        },
+
+        // V2 espera filename/base64 (sin mime)
         cv: {
-          name: file.name || "cv.pdf",
-          mime: file.type || "application/pdf",
+          filename: file.name || "cv.pdf",
           base64: cvB64,
         },
-        antifraud: antifraudData, // 🔴 DATOS COMPLETOS DE ANTIFRAUDE
       };
+
 
       console.log("📊 Datos de antifraude enviados:", antifraudData);
       
