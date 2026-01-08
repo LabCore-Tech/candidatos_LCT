@@ -12,11 +12,11 @@
 <body>
   <!-- ⛔ PÁGINA EN CONSTRUCCIÓN (INICIO) -->
   <style>
-    /* Overlay TRANSPARENTE que solo bloquea interacción */
+    /* Overlay totalmente transparente */
     #constructionOverlay{
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0); /* ⬅ transparente */
+      background: transparent; /* ← 100% transparente */
       z-index: 2147483647;
       display: flex;
       align-items: center;
@@ -72,7 +72,7 @@
       color: #fff;
     }
   
-    /* Bloquea interacción con la página */
+    /* 🔒 Bloquea interacción del fondo */
     body.construction-lock *{
       pointer-events: none;
     }
@@ -85,24 +85,19 @@
   <div id="constructionOverlay" role="dialog" aria-modal="true">
     <div class="popup">
       <img src="https://cdn-icons-png.flaticon.com/512/2748/2748558.png" alt="En construcción" />
-  
       <h1>Página en construcción</h1>
-  
       <p>Este módulo se encuentra en ajuste y validación.</p>
-  
       <p class="note">
         Comunícate con el área encargada para conocer cuándo estará habilitado.
       </p>
-  
       <button id="btnCloseConstruction" type="button">Cerrar</button>
     </div>
   </div>
   
   <script>
-    // 👉 Cambia la URL si quieres
     const REDIRECT_URL = "https://www.google.com";
   
-    // Bloquea interacción sin ocultar el fondo
+    // Bloquea interacción, NO visual
     document.body.classList.add("construction-lock");
   
     document.getElementById("btnCloseConstruction")?.addEventListener("click", () => {
@@ -363,4 +358,5 @@
 </body>
 
 </html>
+
 
