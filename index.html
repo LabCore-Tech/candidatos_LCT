@@ -10,91 +10,102 @@
 </head>
 
 <body>
-
   <!-- ⛔ PÁGINA EN CONSTRUCCIÓN (INICIO) -->
   <style>
-    .construction-overlay{
-      position:fixed; inset:0;
-      background:rgba(245,246,250,.97);
-      z-index:99999;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-      padding:18px;
+    /* BLOQUEO total (blindado contra CSS global) */
+    #constructionOverlay{
+      position: fixed !important;
+      top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+      width: 100vw !important; height: 100vh !important;
+      background: rgba(245,246,250,.97) !important;
+      z-index: 2147483647 !important; /* el más alto */
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 18px !important;
+      font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif !important;
     }
-    .construction-box{
-      background:#fff;
-      border-radius:14px;
-      padding:20px 18px;
-      max-width:320px;   /* ⬅ más pequeño */
-      width:100%;
-      text-align:center;
-      box-shadow:0 18px 45px rgba(0,0,0,.14);
+  
+    #constructionOverlay .box{
+      background:#fff !important;
+      border-radius:14px !important;
+      padding:18px 16px !important;
+      max-width:320px !important;
+      width:100% !important;
+      text-align:center !important;
+      box-shadow:0 18px 45px rgba(0,0,0,.14) !important;
     }
-    .construction-box img{
-      width:58px;        /* ⬅ más pequeño */
-      height:auto;
-      margin:0 auto 10px;
-      display:block;
+  
+    #constructionOverlay img{
+      width:56px !important;
+      height:auto !important;
+      margin:0 auto 10px !important;
+      display:block !important;
     }
-    .construction-box h1{
-      font-size:16px;    /* ⬅ más pequeño */
-      margin:0 0 8px;
-      color:#2c2c2c;
-      font-weight:800;
-      letter-spacing:.2px;
+  
+    #constructionOverlay h1{
+      font-size:16px !important;
+      margin:0 0 8px !important;
+      color:#2c2c2c !important;
+      font-weight:800 !important;
     }
-    .construction-box p{
-      font-size:13px;    /* ⬅ más pequeño */
-      margin:0 0 8px;
-      color:#555;
-      line-height:1.45;
+  
+    #constructionOverlay p{
+      font-size:13px !important;
+      margin:0 0 8px !important;
+      color:#555 !important;
+      line-height:1.45 !important;
     }
-    .construction-box .note{
-      font-size:12px;
-      color:#777;
-      margin-top:10px;
+  
+    #constructionOverlay .note{
+      font-size:12px !important;
+      color:#777 !important;
+      margin-top:10px !important;
     }
-    .construction-actions{
-      margin-top:14px;
-      display:flex;
-      gap:10px;
-      justify-content:center;
+  
+    #constructionOverlay .btn{
+      border:0 !important;
+      border-radius:10px !important;
+      padding:10px 14px !important;
+      font-size:13px !important;
+      font-weight:700 !important;
+      cursor:pointer !important;
+      background:#111 !important;
+      color:#fff !important;
+      margin-top:14px !important;
     }
-    .btn-close-const{
-      border:0;
-      border-radius:10px;
-      padding:10px 14px;
-      font-size:13px;
-      font-weight:700;
-      cursor:pointer;
-      background:#111;
-      color:#fff;
+  
+    /* Congela todo lo demás SIN tocar tu JS */
+    html.construction-lock, body.construction-lock{
+      overflow:hidden !important;
+      height:100% !important;
+    }
+    body.construction-lock > *:not(#constructionOverlay){
+      pointer-events:none !important;
+      user-select:none !important;
+      filter: blur(2px) !important;
     }
   </style>
   
-  <div class="construction-overlay" id="constructionOverlay" aria-modal="true" role="dialog">
-    <div class="construction-box">
-      <!-- Puedes cambiar esta imagen por una tuya local si quieres -->
+  <div id="constructionOverlay" role="dialog" aria-modal="true">
+    <div class="box">
       <img src="https://cdn-icons-png.flaticon.com/512/2748/2748558.png" alt="En construcción" />
-  
       <h1>Página en construcción</h1>
-  
       <p>Este módulo está en ajuste y validación.</p>
-  
       <p class="note">Comunícate con el área encargada para confirmar cuándo estará habilitado.</p>
-  
-      <div class="construction-actions">
-        <button class="btn-close-const" id="btnCloseConstruction" type="button">Cerrar</button>
-      </div>
+      <button class="btn" id="btnCloseConstruction" type="button">Cerrar</button>
     </div>
   </div>
   
   <script>
-    // ⬇️ CAMBIA ESTA URL
+    // 🔁 Cambia a donde quieras mandar a la gente
     const REDIRECT_URL = "https://www.google.com";
   
+    // Bloquea la página por debajo (sin tocar app.js)
+    document.documentElement.classList.add("construction-lock");
+    document.body.classList.add("construction-lock");
+  
+    // Cerrar -> redirigir
     document.getElementById("btnCloseConstruction")?.addEventListener("click", () => {
       window.location.href = REDIRECT_URL;
     });
@@ -162,9 +173,10 @@
         </div>
 
         <div class="field">
-          <label for="github">GitHub <span class="req">*</span></label>
+          <label for="github">GitHub</label>
           <input id="github" class="input" type="url" placeholder="https://github.com/tuusuario" />
         </div>
+
 
         <div class="field">
           <label for="cvFile">Hoja de vida <span class="req">*</span></label>
@@ -276,35 +288,57 @@
 
   </main>
 
-  <!-- Modal info -->
+  <!-- Modal info - Mejorado -->
   <div id="modalInfo" class="modal hidden" aria-hidden="true">
     <div class="modal__backdrop" data-close="1"></div>
     <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="miTitle">
-      <!-- Botón X de cerrar -->
-      <button class="modal__close" type="button" data-close="1" aria-label="Cerrar">
-        ×
-      </button>
+      <!-- Cabecera con título y botón X a la derecha -->
+      <div class="modal__header">
+        <h3 id="miTitle">Antes de iniciar</h3>
+        <!-- Botón X de cerrar - POSICIONADO A LA DERECHA -->
+        <button class="modal__close" type="button" data-close="1" aria-label="Cerrar">
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
       
-      <h3 id="miTitle">Antes de iniciar</h3>
+      <div class="modal__content">
         <p>
           Esta prueba tiene una duración aproximada de <b>10 minutos</b>. 
           Se recomienda contar con este tiempo disponible para poder realizarla sin interrupciones.
           La prueba se iniciará de manera inmediata.
         </p>
+      </div>
+      
       <div class="modal__actions">
-        <!-- Se eliminó el botón Cancelar -->
         <button id="btnContinue" class="btn primary" type="button">Continuar</button>
       </div>
     </div>
   </div>
-  <!-- Modal result -->
+
+  <!-- Modal result - Mejorado -->
   <div id="modalResult" class="modal hidden" aria-hidden="true">
     <div class="modal__backdrop" data-close="1"></div>
     <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="mrTitle">
-      <h3 id="mrTitle">Resultado</h3>
-      <p id="mrMsg"></p>
+      <!-- Cabecera con título y botón X a la derecha -->
+      <div class="modal__header">
+        <h3 id="mrTitle">Resultado</h3>
+        <!-- Botón X de cerrar - POSICIONADO A LA DERECHA -->
+        <button class="modal__close" type="button" data-close="1" aria-label="Cerrar">
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
+      
+      <div class="modal__content">
+        <div class="modal__icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <p id="mrMsg">Evaluación enviada correctamente.</p>
+      </div>
+      
       <div class="modal__actions">
-        <button class="btn primary" type="button" data-close="1">Cerrar</button>
+        <button id="btnCloseResult" class="btn primary" type="button">Cerrar</button>
       </div>
     </div>
   </div>
@@ -314,5 +348,3 @@
 </body>
 
 </html>
-
-
