@@ -1160,35 +1160,41 @@ window.PUBLIC_EVAL_API_KEY =
   // =============================
   // Modal Functions
   // =============================
+
+  // 🔔 Modal de integridad
     function openModalIntegrity(customMsg = "") {
-    if (miwBody && customMsg) miwBody.innerHTML = customMsg;
-    if (!modalIntegrity) return;
-    modalIntegrity.classList.remove("hidden", "is-hidden");
-    document.body.style.overflow = "hidden";
-  }
+      if (!modalIntegrity) return;
+      if (miwBody && customMsg) {
+        miwBody.textContent = customMsg;
+      }
+      modalIntegrity.classList.remove("hidden", "is-hidden");
+      document.body.style.overflow = "hidden";
+    }
 
-  function closeModalIntegrity() {
-    if (!modalIntegrity) return;
-    modalIntegrity.classList.add("hidden");
-    document.body.style.overflow = "";
-  }
+    function closeModalIntegrity() {
+      if (!modalIntegrity) return;
+      modalIntegrity.classList.add("hidden");
+      document.body.style.overflow = "";
+    }
 
-  function showIntegrityAlertOnce() {
-    if (!state.examStarted) return;
-    if (state.antifraud.integrityWarned) return;
-    state.antifraud.integrityWarned = true;
+    // ⚠️ Mostrar alerta de integridad SOLO UNA VEZ
+    function showIntegrityAlertOnce() {
+      if (!state.examStarted) return;
+      if (state.antifraud.integrityWarned) return;
 
-    // Mensaje FUERTE, claro, profesional
-    const msg =
-      'Esta evaluación cuenta con <b>control de integridad</b>.<br><br>' +
-      'Responde únicamente con tu propio criterio y mantén la prueba en esta pantalla.<br>' +
-      'Acciones como <b>cambiar de pestaña</b>, <b>copiar</b> o <b>pegar</b> información, o intentar usar <b>herramientas externas</b> ' +
-      'quedan registradas y pueden afectar el resultado final.<br><br>' +
-      'La prueba está diseñada para resolverse en aproximadamente <b>10 minutos</b>. Concéntrate y continúa.';
+      state.antifraud.integrityWarned = true;
 
-    openModalIntegrity(msg);
-  }
+      const INTEGRITY_MESSAGE =
+        "Atención\n\n" +
+        "Esta evaluación cuenta con control de integridad.\n\n" +
+        "Responde con tu propio criterio y mantén el foco en la prueba. " +
+        "El sistema realiza seguimiento continuo durante todo el proceso.\n\n" +
+        "La evaluación está diseñada para resolverse en aproximadamente 10 minutos. " +
+        "Concéntrate y continúa.";
 
+      openModalIntegrity(INTEGRITY_MESSAGE);
+    }
+    
   function openModalInfo() {
     if (!modalInfo) return;
     modalInfo.classList.remove("hidden", "is-hidden");
