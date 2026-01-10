@@ -72,6 +72,11 @@ window.PUBLIC_EVAL_API_KEY =
   const mrMsg = $("mrMsg");
   const btnCloseResult = $("btnCloseResult");
 
+    // ✅ Modal Integridad (ALERTA)
+  const modalIntegrity = $("modalIntegrity");
+  const miwBody = $("miwBody");
+  const btnIntegrityOk = $("btnIntegrityOk");
+
   // =============================
   // State - ANTIFRAUDE COMPLETO MEJORADO
   // =============================
@@ -92,7 +97,8 @@ window.PUBLIC_EVAL_API_KEY =
       endTime: null,
       totalOutOfFocusTime: 0,
       lastFocusLossTime: null,
-      
+      // ✅ Mostrar alerta solo una vez por evaluación
+      integrityWarned: false,
       // Detalles por pregunta
       questionsDetail: {}, // {qId: {times, focusEvents, actions, flags}}
       
@@ -282,6 +288,8 @@ window.PUBLIC_EVAL_API_KEY =
   // =============================
   function handleFocusLoss() {
     if (!state.examStarted || !state.antifraud.currentQuestionId) return;
+        showIntegrityAlertOnce();
+
     
     const now = getTimestamp();
     state.antifraud.lastFocusLossTime = now;
@@ -370,6 +378,7 @@ window.PUBLIC_EVAL_API_KEY =
   // =============================
   function registerCopyAction() {
     if (!state.examStarted || !state.antifraud.currentQuestionId) return;
+    showIntegrityAlertOnce();
     
     state.antifraud.totalCopyActions++;
     
@@ -455,7 +464,8 @@ window.PUBLIC_EVAL_API_KEY =
 
   function registerContextMenuAttempt() {
     if (!state.examStarted || !state.antifraud.currentQuestionId) return;
-    
+    showIntegrityAlertOnce();
+
     state.antifraud.contextMenuAttempts++;
     
     const questionId = state.antifraud.currentQuestionId;
@@ -1150,6 +1160,35 @@ window.PUBLIC_EVAL_API_KEY =
   // =============================
   // Modal Functions
   // =============================
+    function openModalIntegrity(customMsg = "") {
+    if (miwBody && customMsg) miwBody.innerHTML = customMsg;
+    if (!modalIntegrity) return;
+    modalIntegrity.classList.remove("hidden", "is-hidden");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeModalIntegrity() {
+    if (!modalIntegrity) return;
+    modalIntegrity.classList.add("hidden");
+    document.body.style.overflow = "";
+  }
+
+  function showIntegrityAlertOnce() {
+    if (!state.examStarted) return;
+    if (state.antifraud.integrityWarned) return;
+    state.antifraud.integrityWarned = true;
+
+    // Mensaje FUERTE, claro, profesional
+    const msg =
+      'Esta evaluación cuenta con <b>control de integridad</b>.<br><br>' +
+      'Responde únicamente con tu propio criterio y mantén la prueba en esta pantalla.<br>' +
+      'Acciones como <b>cambiar de pestaña</b>, <b>copiar</b> o <b>pegar</b> información, o intentar usar <b>herramientas externas</b> ' +
+      'quedan registradas y pueden afectar el resultado final.<br><br>' +
+      'La prueba está diseñada para resolverse en aproximadamente <b>10 minutos</b>. Concéntrate y continúa.';
+
+    openModalIntegrity(msg);
+  }
+
   function openModalInfo() {
     if (!modalInfo) return;
     modalInfo.classList.remove("hidden", "is-hidden");
@@ -1372,6 +1411,12 @@ window.PUBLIC_EVAL_API_KEY =
     el.addEventListener("click", closeModalInfo);
   });
 
+    // ✅ Cierre modal integridad
+  modalIntegrity?.querySelectorAll('[data-close="1"]').forEach((el) => {
+    el.addEventListener("click", closeModalIntegrity);
+  });
+  btnIntegrityOk?.addEventListener("click", closeModalIntegrity);
+
   modalResult?.querySelectorAll('[data-close="1"]').forEach((el) => {
     el.addEventListener("click", closeModalResult);
   });
@@ -1443,7 +1488,8 @@ window.PUBLIC_EVAL_API_KEY =
   // Detectar intentos de abrir DevTools con F12
   document.addEventListener("keydown", (e) => {
     if (!state.examStarted) return;
-    
+          showIntegrityAlertOnce();
+
     if (e.key === 'F12' || 
         (e.ctrlKey && e.shiftKey && e.key === 'I') ||
         (e.ctrlKey && e.shiftKey && e.key === 'J') ||
